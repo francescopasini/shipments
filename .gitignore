@@ -1,0 +1,4 @@
+.DS_Store
+
+# Local editor/tooling config (the README documents how to serve the site)
+.claude/

@@ -1,0 +1,19 @@
+/* Theme = background only. Components are shared between FO and BO. */
+
+/* FO — superlight gray */
+.theme-fo {
+  --bg: #f5f6f7;
+  --card: #ffffff;
+  --card-sunken: #eef0f2;
+  --shadow-dark: rgba(58, 52, 48, .13);
+}
+
+/* BO — light brown */
+.theme-bo {
+  --bg: #eae0d2;
+  --card: #fffdfa;
+  --card-sunken: #f0e7da;
+  --shadow-dark: rgba(88, 68, 44, .18);
+}
+
+.theme-fo, .theme-bo { background: var(--bg); }

@@ -1,0 +1,74 @@
+/* Design tokens — clay/bento system.
+   Palette is capped at five pastel colors per the design guidelines.
+   Neutrals (backgrounds, card, ink) sit outside that count. */
+
+:root {
+  /* ---- the five ---- */
+  --clay-sky:    #a9c6dc;
+  --clay-butter: #f1d9a7;
+  --clay-lilac:  #c6b8da;
+  --clay-sage:   #b9cba5;
+  --clay-rose:   #e9b8b4;
+
+  /* deeper variants for text on pastel fills — same hues, not new colors */
+  --clay-sky-ink:    #2f5771;
+  --clay-butter-ink: #7a5c17;
+  --clay-lilac-ink:  #55427a;
+  --clay-sage-ink:   #41603a;
+  --clay-rose-ink:   #8a3f3a;
+
+  /* soft tints for large fills */
+  --clay-sky-soft:    #e4eef5;
+  --clay-butter-soft: #faf1dd;
+  --clay-lilac-soft:  #ece6f3;
+  --clay-sage-soft:   #e7eee0;
+  --clay-rose-soft:   #f8e6e5;
+
+  /* ---- neutrals ---- */
+  --bg:          #f5f6f7;
+  --card:        #fffdfb;
+  --card-sunken: #f3efe9;
+  --ink:         #3a3430;
+  --ink-2:       #6b625b;
+  --ink-3:       #9a9088;
+  --line:        rgba(58, 52, 48, .09);
+
+  /* ---- clay geometry ---- */
+  --r-xl: 28px;
+  --r-lg: 22px;
+  --r-md: 16px;
+  --r-sm: 11px;
+  --r-pill: 999px;
+
+  --shadow-dark:  rgba(58, 52, 48, .16);
+  --shadow-light: rgba(255, 255, 255, .9);
+
+  --clay:
+    8px 8px 20px var(--shadow-dark),
+    -6px -6px 16px var(--shadow-light),
+    inset 2px 2px 4px rgba(255, 255, 255, .6);
+  --clay-sm:
+    4px 4px 12px var(--shadow-dark),
+    -3px -3px 9px var(--shadow-light),
+    inset 1px 1px 3px rgba(255, 255, 255, .6);
+  --clay-press:
+    inset 4px 4px 9px var(--shadow-dark),
+    inset -3px -3px 8px var(--shadow-light);
+  --clay-flat:
+    2px 2px 7px rgba(58, 52, 48, .09),
+    -2px -2px 6px var(--shadow-light);
+
+  /* ---- type ---- */
+  --font: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --t-display: 700 30px/1.15 var(--font);
+  --t-title:   700 21px/1.25 var(--font);
+  --t-section: 800 12px/1.2 var(--font);
+  --t-body:    400 14.5px/1.55 var(--font);
+  --t-strong:  600 14.5px/1.5 var(--font);
+  --t-small:   400 12.5px/1.45 var(--font);
+  --t-metric:  800 34px/1 var(--font);
+
+  --gap: 18px;
+  --pad: 22px;
+  --nav-w: 244px;
+}
