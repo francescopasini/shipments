@@ -2,7 +2,7 @@
 
 import { h, append, fmtInt } from '../../ui/el.js';
 import {
-  card, tile, btn, meter, empty, sectionHead, numberInput, toast, badge,
+  card, tile, btn, empty, sectionHead, numberInput, toast, badge,
 } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
@@ -39,7 +39,7 @@ export function render(main) {
 }
 
 function stockCard(row, site) {
-  const { item, held, target, inbound, ratio } = row;
+  const { item, held, target, inbound } = row;
 
   // Uncontrolled input: commit on change/blur so the re-render never steals focus.
   const input = numberInput({
@@ -62,15 +62,8 @@ function stockCard(row, site) {
           h('span', { class: 'strong truncate', title: item.name }, item.name),
           item.coldChain ? badge('Cold chain', 'sky') : null),
         h('div', { class: 'small dim truncate' },
-          `${item.code} · per ${item.unit}`
+          `${item.code} · per ${item.unit} · target ${fmtInt(target)}`
           + (inbound ? ` · ${fmtInt(inbound)} on the way` : ''))),
-
-      h('div', { style: { width: '170px' } },
-        h('div', { class: 'row-between small' },
-          h('span', { class: ratio < 0.5 ? 'strong' : 'dim' },
-            `${Math.round(ratio * 100)}% of target`),
-          h('span', { class: 'dim tnum' }, `${fmtInt(held)} / ${fmtInt(target)}`)),
-        meter(ratio)),
 
       h('div', { class: 'small dim right nowrap' },
         row.requestable > 0

@@ -12,7 +12,7 @@ import { COUNTRIES, siteLocation } from '../../domain/constants.js';
 import { totalAt } from '../../domain/stock.js';
 import {
   getTrial, coordinatorsForSite, userName, shippingCoordinators, allTrials, byCode,
-  siteStockRows, siteCoverage, shipmentsForSite, cadencesForTrial, countryName,
+  siteStockRows, shipmentsForSite, cadencesForTrial, countryName,
 } from '../../domain/selectors.js';
 import { shipmentCard, chipStrip } from '../common.js';
 
@@ -59,7 +59,6 @@ export function renderList(main) {
 
 function siteCard(db, site) {
   const trial = getTrial(db, site.trialId);
-  const coverage = siteCoverage(db, site);
   const open = shipmentsForSite(db, site.id).filter((s) => s.status !== 'DELIVERED').length;
 
   return h('button', {
@@ -72,11 +71,6 @@ function siteCard(db, site) {
       h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
       h('div', { class: 'small dim truncate' },
         `${site.address.city}, ${countryName(site.address.country)}${trial ? ` · ${trial.code}` : ''}`)),
-    h('div', { style: { width: '170px' } },
-      h('div', { class: 'row-between small dim' },
-        h('span', {}, 'Stock'),
-        h('span', { class: 'tnum' }, `${Math.round(coverage * 100)}%`)),
-      meter(coverage)),
     h('div', { class: 'small dim right nowrap' },
       h('div', { class: 'truncate' }, userName(db, site.shippingCoordinatorId)),
       h('div', {}, `${open} open`)),
