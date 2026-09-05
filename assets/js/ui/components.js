@@ -25,7 +25,7 @@ export function actionCard(props = {}, ...children) {
  * no colour variants.
  */
 export function tile(name, size = 'md') {
-  const px = size === 'sm' ? 46 : 64;
+  const px = size === 'sm' ? 56 : 76;
   const img = iconImg(name, px);
   if (img) {
     img.className = `tile${size === 'sm' ? ' tile--sm' : ''}`;

@@ -10,10 +10,10 @@
   padding: var(--pad);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
 }
-.card--tight { padding: 16px; gap: 10px; }
+.card--tight { padding: 12px 14px; gap: 8px; }
 .card--flat { box-shadow: var(--clay-flat); }
 /* a nested panel is a flat tint — nothing in the reference is carved */
 .card--sunken {
@@ -49,13 +49,13 @@
 /* The 3D artwork is the icon — no container behind it. It occupies exactly the
    space the old cream tile did. One version of every icon, no colour variants. */
 .tile {
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   flex: none;
   display: block;
   object-fit: contain;
 }
-.tile--sm { width: 46px; height: 46px; }
+.tile--sm { width: 56px; height: 56px; }
 
 /* Fallback for the few names the 3D pack has no artwork for: the inline glyph,
    centred in the same footprint. */

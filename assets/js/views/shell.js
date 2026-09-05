@@ -67,13 +67,13 @@ function brand(side) {
 }
 
 const navIcon = (name) => {
-  const img = iconImg(name, 32);
+  const img = iconImg(name, 38);
   if (img) img.className = 'nav__icon';
   return img || icon(name, 22);
 };
 
 const brandMark = () => {
-  const img = iconImg('truck', 76);
+  const img = iconImg('truck', 92);
   if (img) img.className = 'nav__brand-mark';
   return img || icon('truck', 40);
 };
