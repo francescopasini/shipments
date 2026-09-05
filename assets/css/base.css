@@ -135,7 +135,8 @@ svg { display: block; }
 .col-12 { grid-column: span 12; }
 
 .stack { display: flex; flex-direction: column; gap: var(--gap); }
-.stack-sm { display: flex; flex-direction: column; gap: 10px; }
+/* full-width card lists stack with the same gap as the bento grid */
+.stack-sm { display: flex; flex-direction: column; gap: var(--gap); }
 .row { display: flex; align-items: center; gap: 10px; }
 .row-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
