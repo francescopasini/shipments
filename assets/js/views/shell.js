@@ -63,7 +63,7 @@ export function renderShell(root) {
 function brand() {
   return h('div', { class: 'nav__brand' },
     brandMark(),
-    h('span', { class: 'nav__brand-name' }, 'shipments'));
+    h('span', { class: 'nav__brand-name' }, 'Shipments'));
 }
 
 const navIcon = (name) => {
