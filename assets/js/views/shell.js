@@ -77,8 +77,8 @@ const navIcon = (name) => {
 const brandMark = () => {
   const img = document.createElement('img');
   img.src = 'assets/img/brand-truck.png';
-  img.width = 96;
-  img.height = 96;
+  img.width = 141;
+  img.height = 141;
   img.alt = '';
   img.decoding = 'async';
   img.className = 'nav__brand-mark';
