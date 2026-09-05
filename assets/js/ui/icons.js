@@ -45,7 +45,7 @@ const P = {
  * anyway, so they stay as the inline SVGs below.
  */
 const IMG = {
-  home: 'global-shipping-network',
+  home: 'wooden-pallet-shipping',
   box: 'storage-container-box',
   truck: 'delivery-truck-cargo',
   warehouse: 'small-warehouse-storage',
@@ -55,11 +55,11 @@ const IMG = {
   user: 'package-handling-worker',
   users: 'supply-chain-partnership',
   clipboard: 'delivery-checklist-package',
-  flask: 'factory-production-plant',
+  flask: 'shipment-tracking-search',
   seal: 'package-inspection-checklist',
   chart: 'order-processing-center',
   calendar: 'conveyor-belt-packages',
-  clock: 'shipment-tracking-search',
+  clock: 'global-shipping-network',
   search: 'shipment-tracking-search',
   check: 'package-inspection-checklist',
   pin: 'direction-signpost-route',
