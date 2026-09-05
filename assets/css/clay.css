@@ -46,6 +46,8 @@
 
 /* ---------- clay icon tile ---------- */
 
+/* An icon tile is the card's own colour, extruded. The hue lives in the glyph,
+   exactly as in the reference — cream moulded squares carrying coloured objects. */
 .tile {
   width: 46px;
   height: 46px;
@@ -54,16 +56,16 @@
   display: grid;
   place-items: center;
   box-shadow: var(--clay-tile);
-  background-color: var(--clay-sky-soft);
+  background-color: var(--card);
   background-image: var(--tile-shine);
   background-repeat: no-repeat;
 }
-.tile--sm { width: 34px; height: 34px; border-radius: calc(var(--tile-radius) * .7); }
-.tile--sky { background-color: var(--clay-sky-soft); color: var(--clay-sky-ink); }
-.tile--butter { background-color: var(--clay-butter-soft); color: var(--clay-butter-ink); }
-.tile--lilac { background-color: var(--clay-lilac-soft); color: var(--clay-lilac-ink); }
-.tile--sage { background-color: var(--clay-sage-soft); color: var(--clay-sage-ink); }
-.tile--rose { background-color: var(--clay-rose-soft); color: var(--clay-rose-ink); }
+.tile--sm { width: 34px; height: 34px; border-radius: calc(var(--tile-radius) * .72); }
+.tile--sky { color: var(--clay-sky-ink); }
+.tile--butter { color: var(--clay-butter-ink); }
+.tile--lilac { color: var(--clay-lilac-ink); }
+.tile--sage { color: var(--clay-sage-ink); }
+.tile--rose { color: var(--clay-rose-ink); }
 
 /* ---------- buttons ---------- */
 
@@ -414,7 +416,8 @@
   place-items: center;
   font: 800 12px/1 var(--font);
   box-shadow: var(--clay-sm);
-  background: var(--clay-lilac-soft);
+  background-color: var(--card);
+  background-image: var(--tile-shine);
   color: var(--clay-lilac-ink);
 }
 .avatar--lg { width: 60px; height: 60px; font-size: 20px; }

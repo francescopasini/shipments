@@ -34,48 +34,62 @@
   --ink-3:       #9a9088;
   --line:        rgba(58, 52, 48, .09);
 
-  /* Raised controls sit lighter than the card so they read as lifted; sunken
-     panels are a flat tint, never a carve. These two are fallbacks for the
-     unthemed case — a custom property substitutes var() where it is *declared*,
-     so the real derivation is re-declared on the theme element in themes.css,
-     next to the --card it depends on. */
-  --control-bg:  color-mix(in srgb, var(--card) 55%, #fff);
+  /* Raised objects are the SAME colour as the card — they read as lifted purely
+     through their lit top edge and the shadow they cast, exactly as in the
+     reference. Sunken panels are a flat tint, never a carve. These two are
+     fallbacks for the unthemed case: a custom property substitutes var() where
+     it is *declared*, so the real derivation is re-declared on the theme element
+     in themes.css, next to the --card it depends on. */
+  --control-bg:  var(--card);
   --card-sunken: color-mix(in srgb, var(--card) 92%, var(--ink));
 
-  /* Top-light that domes a raised control. Translucent, so it lightens the top
-     of a tinted button instead of painting over its colour. */
-  --btn-shine: linear-gradient(180deg, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 62%);
+  /* Soft top-light wash over a raised object. Translucent, so it lightens the
+     top of a tinted button instead of painting over its colour. */
+  --btn-shine: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 62%);
 
   /* ---- clay geometry ---- */
   --card-radius: 32px;
-  --card-border: rgba(140, 124, 100, .22);
+  --card-border: transparent;
   --r-xl: 28px;
   --r-lg: 22px;
   --r-md: 16px;
   --r-sm: 11px;
   --r-pill: 999px;
 
-  /* One warm-neutral shadow colour, shared by both palettes. The reference has a
-     single soft downward shadow — no tight dark ring, no white counter-glow. */
+  /* One warm-neutral shadow colour, shared by both palettes.
+     Every elevated surface is built the same way, which is what makes it read as
+     a moulded slab rather than a flat panel:
+       1. a wide ambient shadow,
+       2. a tight contact shadow that hugs the edge and implies thickness,
+       3. a lit top edge (inset white rim), the object catching light from above,
+       4. a shaded bottom edge inside the object. */
   --shadow: 96, 84, 66;
 
   --clay:
-    0 16px 34px -14px rgba(var(--shadow), .30),
-    0 3px 8px rgba(var(--shadow), .10);
+    0 14px 24px -8px rgba(var(--shadow), .30),
+    0 5px 10px -3px rgba(var(--shadow), .22),
+    0 1px 2px rgba(var(--shadow), .10),
+    inset 0 2px 0 rgba(255, 255, 255, .95),
+    inset 0 -4px 6px -3px rgba(var(--shadow), .16);
   --clay-sm:
-    0 5px 10px -2px rgba(var(--shadow), .26),
-    0 1px 2px rgba(var(--shadow), .14);
-  /* pressed: settle down, never invert into a carve */
-  --clay-press: 0 1px 2px rgba(var(--shadow), .18);
+    0 5px 9px -2px rgba(var(--shadow), .30),
+    0 2px 4px -1px rgba(var(--shadow), .22),
+    inset 0 1.5px 0 rgba(255, 255, 255, 1),
+    inset 0 -2px 4px -1px rgba(var(--shadow), .18);
+  /* pressed: settle onto the surface, never invert into a carve */
+  --clay-press:
+    0 1px 2px rgba(var(--shadow), .22),
+    inset 0 1px 0 rgba(255, 255, 255, .6);
   --clay-flat: 0 2px 5px rgba(var(--shadow), .14);
 
-  /* icon tiles: lifted blob with a carved highlight/shade contained inside it */
+  /* icon tiles: the most sculpted of the three — same recipe, stronger */
   --clay-tile:
-    0 9px 16px -3px rgba(var(--shadow), .34),
-    inset 2px 2px 3px rgba(255, 255, 255, .75),
-    inset -3px -4px 6px rgba(var(--shadow), .26);
-  --tile-shine: radial-gradient(125% 125% at 26% 20%, rgba(255, 255, 255, .8), rgba(255, 255, 255, 0) 55%);
-  --tile-radius: 20px;
+    0 6px 10px -2px rgba(var(--shadow), .34),
+    0 2px 4px -1px rgba(var(--shadow), .28),
+    inset 0 2px 1px rgba(255, 255, 255, 1),
+    inset 0 -3px 5px -1px rgba(var(--shadow), .24);
+  --tile-shine: radial-gradient(125% 125% at 30% 18%, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0) 60%);
+  --tile-radius: 18px;
 
   /* ---- type ---- */
   --font: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -87,7 +101,7 @@
   --t-small:   400 12.5px/1.45 var(--font);
   --t-metric:  800 34px/1 var(--font);
 
-  --gap: 18px;
+  --gap: 11px;
   --pad: 22px;
   --nav-w: 244px;
 }

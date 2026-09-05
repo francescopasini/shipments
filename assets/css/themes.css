@@ -11,15 +11,16 @@
 
 /* BO — warm cream, per the design reference */
 .theme-bo {
-  --bg:   #e8dfcd;
-  --card: #f6f2e8;
+  --bg:   #f2e9dd;
+  --card: #f8f1e9;
 }
 
 /* Everything below is shared — it just has to be declared here, on the same
    element as --card, because a custom property substitutes var() at the point
    it is declared. Deriving these at :root would freeze them to :root's --card. */
 .theme-fo, .theme-bo {
-  --control-bg:  color-mix(in srgb, var(--card) 55%, #fff);
+  /* raised objects share the card's colour — their lift comes from shading alone */
+  --control-bg:  var(--card);
   --card-sunken: color-mix(in srgb, var(--card) 92%, var(--ink));
   background: var(--bg);
 }
