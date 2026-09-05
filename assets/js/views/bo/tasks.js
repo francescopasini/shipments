@@ -2,7 +2,7 @@
 
 import { h, append, fmtAgo, fmtInt } from '../../ui/el.js';
 import { icon } from '../../ui/icons.js';
-import { card, btn, empty, sectionHead, shipmentBadge, taskTile } from '../../ui/components.js';
+import { card, btn, empty, sectionHead, shipmentBadge } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import { TASK_TYPE_META } from '../../domain/constants.js';
@@ -55,7 +55,6 @@ function taskCard(db, task) {
     onClick: () => navigate(`/bo/shipments/${shipment.id}`),
   },
   h('div', { class: 'row' },
-    taskTile(task.type),
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'strong truncate' }, meta.label),
       h('div', { class: 'small dim truncate' },

@@ -1,7 +1,6 @@
 // BO home — bento analytics across every shipment plus the central deposit.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { icon } from '../../ui/icons.js';
 import { card, tile, btn, metric, meter, empty, sectionHead } from '../../ui/components.js';
 import { areaChart, statusBars } from '../../ui/charts.js';
 import { navigate } from '../../router.js';
@@ -40,16 +39,15 @@ export function render(main) {
     h('div', { class: 'bento' },
       h('div', { class: 'col-3' }, metric(
         fmtInt(open.length), 'Shipments in flight',
-        `${fmtInt(shipments.length)} raised in total`, 'box', 'sky',
+        `${fmtInt(shipments.length)} raised in total`, 'box',
       )),
       h('div', { class: 'col-3' }, metric(
         fmtInt(myTasks.length), 'Tasks assigned to you',
         myTasks.length ? 'Waiting on your action' : 'Nothing outstanding', 'clipboard',
-        myTasks.length ? 'butter' : 'sage',
       )),
       h('div', { class: 'col-3' }, metric(
         fmtInt(central), 'Units in the deposit',
-        'Across every catalogue item', 'warehouse', 'sage',
+        'Across every catalogue item', 'warehouse',
       )),
       h('div', { class: 'col-3' }, metric(
         fmtInt(inTransit), 'Units in transit',
@@ -60,7 +58,7 @@ export function render(main) {
       h('div', { class: 'col-8' }, card({},
         h('div', { class: 'row-between' },
           h('div', { class: 'row' },
-            tile('chart', 'sky'),
+            tile('chart'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Central deposit stock over time'),
               h('div', { class: 'small dim' }, 'Total units held, last 90 days'))),
@@ -71,7 +69,7 @@ export function render(main) {
 
       h('div', { class: 'col-4' }, card({},
         h('div', { class: 'row' },
-          tile('chart', 'lilac'),
+          tile('chart'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Shipments by status'),
             h('div', { class: 'small dim' }, 'Every site, every trial'))),
@@ -85,16 +83,14 @@ export function render(main) {
       // --- thin cover in the deposit ---
       h('div', { class: 'col-5' }, card({},
         h('div', { class: 'row' },
-          tile('warehouse', lowItems.length ? 'rose' : 'sage'),
+          tile('warehouse'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Thinnest cover'),
             h('div', { class: 'small dim' }, 'Deposit stock against total site allocation'))),
         lowItems.length
           ? h('div', { class: 'stack-sm' }, ...lowItems.map((r) => h('div', { class: 'stack-sm' },
             h('div', { class: 'row-between' },
-              h('div', { class: 'row' },
-                h('span', { class: `tile tile--${r.item.tone} tile--sm` }, icon(r.item.icon, 15)),
-                h('span', { class: 'small truncate' }, r.item.name)),
+              h('span', { class: 'small truncate' }, r.item.name),
               h('span', { class: 'small strong tnum nowrap' },
                 `${fmtInt(r.held)} / ${fmtInt(r.need)}`)),
             meter(Math.min(1, r.ratio)))))
@@ -107,7 +103,7 @@ export function render(main) {
       h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row-between' },
           h('div', { class: 'row' },
-            tile('seal', awaiting.length ? 'butter' : 'sage'),
+            tile('seal'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Waiting on PFI approval'),
               h('div', { class: 'small dim' }, 'These cannot move until an approver decides'))),

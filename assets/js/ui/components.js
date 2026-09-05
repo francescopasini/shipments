@@ -2,9 +2,7 @@
 
 import { h, append, initials } from './el.js';
 import { icon } from './icons.js';
-import {
-  SHIPMENT_STATUS_META, PFI_STATUS_META, TASK_TYPE_META,
-} from '../domain/constants.js';
+import { SHIPMENT_STATUS_META, PFI_STATUS_META } from '../domain/constants.js';
 
 /* ---------- surfaces ---------- */
 
@@ -21,8 +19,9 @@ export function actionCard(props = {}, ...children) {
   return h('button', { ...rest, type: 'button', class: cls, onClick }, ...children);
 }
 
-export function tile(name, tone = 'sky', size = 'md') {
-  return h('span', { class: `tile tile--${tone}${size === 'sm' ? ' tile--sm' : ''}` },
+/** There is one version of every icon — no colour variants. */
+export function tile(name, size = 'md') {
+  return h('span', { class: `tile${size === 'sm' ? ' tile--sm' : ''}` },
     icon(name, size === 'sm' ? 17 : 22));
 }
 
@@ -128,15 +127,15 @@ export function meter(ratio) {
 }
 
 export function empty(message, iconName = 'box', action) {
-  return h('div', { class: 'empty' }, tile(iconName, 'sky'), h('p', {}, message), action || null);
+  return h('div', { class: 'empty' }, tile(iconName), h('p', {}, message), action || null);
 }
 
 export function statLabel(text) { return h('span', { class: 'card__label' }, text); }
 
-export function metric(value, label, footer, iconName, tone = 'sky') {
+export function metric(value, label, footer, iconName) {
   return card({ variant: 'card--tight' },
     h('div', { class: 'row' },
-      iconName ? tile(iconName, tone, 'sm') : null,
+      iconName ? tile(iconName, 'sm') : null,
       h('span', { class: 'card__label' }, label)),
     h('div', { class: 'card__metric' }, value),
     footer ? h('div', { class: 'card__foot' }, footer) : null);
@@ -153,11 +152,6 @@ export function timeline(entries, renderRow) {
       h('div', { class: 'timeline__body' }, renderRow(entry)))]);
   }
   return node;
-}
-
-export function taskTile(type) {
-  const meta = TASK_TYPE_META[type] || { icon: 'clipboard', tone: 'sky' };
-  return tile(meta.icon, meta.tone);
 }
 
 export function sectionHead(title, sub, ...actions) {

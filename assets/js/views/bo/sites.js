@@ -68,7 +68,6 @@ function siteCard(db, site) {
     onClick: () => navigate(`/bo/sites/${site.id}`),
   },
   h('div', { class: 'row-wrap' },
-    tile('building', site.active ? 'sage' : 'rose'),
     h('div', { class: 'grow', style: { minWidth: '160px' } },
       h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
       h('div', { class: 'small dim truncate' },
@@ -113,7 +112,7 @@ export function renderDetail(main, params) {
       h('div', { class: 'row-between' },
         h('div', { class: 'row' },
           back,
-          tile('building', site.active ? 'sage' : 'rose'),
+          tile('building'),
           h('div', {},
             h('div', { class: 'page-head__title' }, `${site.code} · ${site.name}`),
             h('div', { class: 'small dim' },
@@ -137,7 +136,7 @@ export function renderDetail(main, params) {
 
     h('div', { class: 'bento' },
       h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('pin', 'sky'),
+        h('div', { class: 'row' }, tile('pin'),
           h('div', { class: 'card__title' }, 'Address')),
         h('div', { class: 'kv' },
           h('span', { class: 'kv__k' }, 'Street'),
@@ -152,7 +151,7 @@ export function renderDetail(main, params) {
           h('span', { class: 'kv__v tnum' }, `${fmtInt(totalAt(db, siteLocation(site.id)))} units`)))),
 
       h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('users', 'lilac'),
+        h('div', { class: 'row' }, tile('users'),
           h('div', { class: 'card__title' }, 'People')),
         field('Shipping coordinator', select(
           coordinators.map((c) => ({ value: c.id, label: `${c.name} — ${c.email}` })),
@@ -182,7 +181,7 @@ export function renderDetail(main, params) {
 
       h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row-between' },
-          h('div', { class: 'row' }, tile('warehouse', 'butter'),
+          h('div', { class: 'row' }, tile('warehouse'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Allocated items'),
               h('div', { class: 'small dim' }, 'Target stock the site may hold'))),
@@ -193,16 +192,14 @@ export function renderDetail(main, params) {
         rows.length
           ? h('div', { class: 'stack-sm' }, ...rows.map((r) => h('div', { class: 'stack-sm' },
             h('div', { class: 'row-between' },
-              h('div', { class: 'row' },
-                h('span', { class: `tile tile--${r.item.tone} tile--sm` }, icon(r.item.icon, 15)),
-                h('span', { class: 'small truncate' }, r.item.name)),
+              h('span', { class: 'small truncate' }, r.item.name),
               h('span', { class: 'small strong tnum nowrap' },
                 `${fmtInt(r.held)} / ${fmtInt(r.target)}`)),
             meter(r.ratio))))
           : empty('No allocations configured.', 'warehouse'))),
 
       h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('flask', 'sage'),
+        h('div', { class: 'row' }, tile('flask'),
           h('div', { class: 'card__title' }, 'Cadences available')),
         h('div', { class: 'stack-sm' }, ...cadencesForTrial(db, site.trialId).map((c) => h('div', {
           class: 'row-between',
@@ -213,7 +210,7 @@ export function renderDetail(main, params) {
       ),
 
       h('div', { class: 'col-12' }, card({},
-        h('div', { class: 'row' }, tile('box', 'sky'),
+        h('div', { class: 'row' }, tile('box'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Shipments'),
             h('div', { class: 'small dim' }, `${shipments.length} raised by this site`))),
@@ -245,7 +242,6 @@ function openAllocationDialog(site) {
         onChange: (e) => draft.set(item.id, Math.max(0, Math.round(Number(e.target.value) || 0))),
       });
       return h('div', { class: 'row' },
-        h('span', { class: `tile tile--${item.tone} tile--sm` }, icon(item.icon, 15)),
         h('div', { class: 'grow', style: { minWidth: 0 } },
           h('div', { class: 'small strong truncate' }, item.name),
           h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),

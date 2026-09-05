@@ -1,7 +1,6 @@
 // BO stock — items × locations matrix, filterable by location, country and trial.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { icon } from '../../ui/icons.js';
 import { card, btn, empty, sectionHead, select, field, metric } from '../../ui/components.js';
 import * as store from '../../store.js';
 import { CENTRAL, TRANSIT, matrixLocations, balance, totalAt } from '../../domain/stock.js';
@@ -118,12 +117,10 @@ function matrix(db, rows, columns) {
         const total = row.cells.reduce((sum, qty) => sum + qty, 0);
         return h('tr', {},
           h('td', { class: 'col-head' },
-            h('div', { class: 'row' },
-              h('span', { class: `tile tile--${row.item.tone} tile--sm` }, icon(row.item.icon, 15)),
-              h('div', {},
-                h('div', {}, row.item.name),
-                h('div', { class: 'small dim' },
-                  `${row.item.code}${row.item.coldChain ? ' · cold chain' : ''}`)))),
+            h('div', {},
+              h('div', {}, row.item.name),
+              h('div', { class: 'small dim' },
+                `${row.item.code}${row.item.coldChain ? ' · cold chain' : ''}`))),
           ...row.cells.map((qty, i) => {
             const loc = columns[i];
             const target = loc.kind === 'site'

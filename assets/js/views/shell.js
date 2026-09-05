@@ -60,7 +60,7 @@ export function renderShell(root) {
 
 function brand(side) {
   return h('div', { class: 'nav__brand' },
-    h('span', { class: `tile tile--${side === 'fo' ? 'sky' : 'butter'}` }, icon('truck', 22)),
+    h('span', { class: 'tile' }, icon('truck', 22)),
     h('div', {},
       h('div', { class: 'nav__brand-name' }, 'Shipments'),
       h('div', { class: 'nav__brand-sub' }, side === 'fo' ? 'Site front office' : 'Deposit back office')));
@@ -97,7 +97,7 @@ function siteSwitcher(db, user) {
     title: 'Switch site',
   },
   h('div', { class: 'row' },
-    h('span', { class: 'tile tile--sage tile--sm' }, icon('building', 17)),
+    h('span', { class: 'tile tile--sm' }, icon('building', 17)),
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'strong truncate' }, site.code),
       h('div', { class: 'small dim truncate' }, site.address.city)),
@@ -127,7 +127,6 @@ function openSiteDialog(db, user) {
         },
       },
       h('div', { class: 'row' },
-        h('span', { class: 'tile tile--sage tile--sm' }, icon('building', 17)),
         h('div', { class: 'grow' },
           h('div', { class: 'strong' }, `${site.code} · ${site.name}`),
           h('div', { class: 'small dim' },

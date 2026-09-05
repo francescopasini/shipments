@@ -47,7 +47,7 @@ export function render(main, params) {
     myTask
       ? card({ variant: 'card--tight card--sunken' },
         h('div', { class: 'row' },
-          tile('clipboard', 'butter', 'sm'),
+          tile('clipboard', 'sm'),
           h('div', { class: 'grow' },
             h('div', { class: 'strong' }, 'This shipment is on your task list'),
             h('div', { class: 'small dim' },
@@ -63,7 +63,7 @@ export function render(main, params) {
 
     h('div', { class: 'bento' },
       h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('box', 'sky'),
+        h('div', { class: 'row' }, tile('box'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Shipment contents'),
             h('div', { class: 'small dim' },
@@ -76,7 +76,7 @@ export function render(main, params) {
         pfi && pfi.status !== 'NOT_REQUIRED'
           ? pfiPanel(db, pfi)
           : card({},
-            h('div', { class: 'row' }, tile('seal', 'sage'),
+            h('div', { class: 'row' }, tile('seal'),
               h('div', {},
                 h('div', { class: 'card__title' }, 'Proforma invoice'),
                 h('div', { class: 'small dim' }, 'Not required for this site'))),
@@ -85,7 +85,7 @@ export function render(main, params) {
               + 'shipment goes straight to preparation.'))),
 
       h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('building', 'lilac'),
+        h('div', { class: 'row' }, tile('building'),
           h('div', { class: 'card__title' }, 'Destination')),
         site
           ? h('div', { class: 'kv' },

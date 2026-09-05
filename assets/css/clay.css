@@ -46,8 +46,8 @@
 
 /* ---------- clay icon tile ---------- */
 
-/* An icon tile is the card's own colour, extruded. The hue lives in the glyph,
-   exactly as in the reference — cream moulded squares carrying coloured objects. */
+/* An icon tile is the card's own colour, extruded. There is exactly one version
+   of every icon — no per-status or per-category colour variants. */
 .tile {
   width: 46px;
   height: 46px;
@@ -59,13 +59,9 @@
   background-color: var(--card);
   background-image: var(--tile-shine);
   background-repeat: no-repeat;
+  color: var(--ink-2);
 }
 .tile--sm { width: 34px; height: 34px; border-radius: calc(var(--tile-radius) * .72); }
-.tile--sky { color: var(--clay-sky-ink); }
-.tile--butter { color: var(--clay-butter-ink); }
-.tile--lilac { color: var(--clay-lilac-ink); }
-.tile--sage { color: var(--clay-sage-ink); }
-.tile--rose { color: var(--clay-rose-ink); }
 
 /* ---------- buttons ---------- */
 

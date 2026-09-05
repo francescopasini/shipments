@@ -1,7 +1,6 @@
 // Profile — shared by both sides, adapting to the active persona's role.
 
 import { h, append } from '../ui/el.js';
-import { icon } from '../ui/icons.js';
 import {
   card, tile, btn, avatar, badge, empty, sectionHead, input, field, toast,
 } from '../ui/components.js';
@@ -42,7 +41,7 @@ export function render(main) {
 
       isFo
         ? h('div', { class: 'col-12' }, card({},
-          h('div', { class: 'row' }, tile('building', 'sage'),
+          h('div', { class: 'row' }, tile('building'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Sites you can access'),
               h('div', { class: 'small dim' }, 'Switch between them from the sidebar'))),
@@ -58,7 +57,6 @@ export function render(main) {
               },
             },
             h('div', { class: 'row' },
-              h('span', { class: 'tile tile--sage tile--sm' }, icon('building', 17)),
               h('div', { class: 'grow', style: { minWidth: 0 } },
                 h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
                 h('div', { class: 'small dim truncate' },
@@ -66,7 +64,7 @@ export function render(main) {
               site.id === db.currentSiteId ? badge('Current', 'sage') : null));
           }))))
         : h('div', { class: 'col-12' }, card({},
-          h('div', { class: 'row' }, tile('building', 'butter'),
+          h('div', { class: 'row' }, tile('building'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Sites you coordinate'),
               h('div', { class: 'small dim' }, 'Shipments from these sites land in your task list'))),
@@ -84,7 +82,6 @@ function coordinatedSites(db, user) {
     onClick: () => navigate(`/bo/sites/${site.id}`),
   },
   h('div', { class: 'row' },
-    h('span', { class: 'tile tile--butter tile--sm' }, icon('building', 17)),
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'strong truncate' }, `${site.code} · ${site.address.city}`),
       h('div', { class: 'small dim truncate' },
@@ -125,7 +122,7 @@ function passwordCard() {
   };
 
   return card({},
-    h('div', { class: 'row' }, tile('lock', 'lilac'),
+    h('div', { class: 'row' }, tile('lock'),
       h('div', { class: 'card__title' }, 'Change password')),
     h('div', { class: 'bento' },
       h('div', { class: 'col-4' }, field('Current password', current)),

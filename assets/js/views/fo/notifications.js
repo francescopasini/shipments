@@ -55,7 +55,6 @@ function noteCard(db, note) {
     onClick: open,
   },
   h('div', { class: 'row' },
-    h('span', { class: `tile tile--${meta.tone}` }, icon(meta.icon, 22)),
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: note.read ? 'muted' : 'strong' }, note.message),
       h('div', { class: 'small dim' },

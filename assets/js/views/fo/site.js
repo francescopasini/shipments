@@ -1,7 +1,6 @@
 // FO site profile — address, who handles the site, and its allocations.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { icon } from '../../ui/icons.js';
 import { card, tile, avatar, meter, empty, sectionHead, badge } from '../../ui/components.js';
 import * as store from '../../store.js';
 import {
@@ -29,7 +28,7 @@ export function render(main) {
     h('div', { class: 'bento' },
       h('div', { class: 'col-5' }, card({},
         h('div', { class: 'row-between' },
-          h('div', { class: 'row' }, tile('pin', 'sage'),
+          h('div', { class: 'row' }, tile('pin'),
             h('div', { class: 'card__title' }, 'Address')),
           badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose')),
         h('div', { class: 'kv' },
@@ -43,7 +42,7 @@ export function render(main) {
           h('span', { class: 'kv__v' }, site.code)))),
 
       h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('flask', 'lilac'),
+        h('div', { class: 'row' }, tile('flask'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Trial'),
             h('div', { class: 'small dim' }, trial ? trial.sponsor : ''))),
@@ -63,7 +62,7 @@ export function render(main) {
           h('span', { class: 'badge__dot' }), `${c.name} · wk ${c.week}`))))),
 
       h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('users', 'sky'),
+        h('div', { class: 'row' }, tile('users'),
           h('div', { class: 'card__title' }, 'People')),
         h('div', { class: 'stack-sm' },
           h('span', { class: 'card__label' }, 'Shipping coordinator (deposit)'),
@@ -82,16 +81,14 @@ export function render(main) {
             p.id === db.currentUserId ? badge('You', 'sage') : null))))),
 
       h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('warehouse', 'butter'),
+        h('div', { class: 'row' }, tile('warehouse'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Allocated items'),
             h('div', { class: 'small dim' }, 'The most this site may hold of each item'))),
         rows.length
           ? h('div', { class: 'stack-sm' }, ...rows.map((r) => h('div', { class: 'stack-sm' },
             h('div', { class: 'row-between' },
-              h('div', { class: 'row' },
-                h('span', { class: `tile tile--${r.item.tone} tile--sm` }, icon(r.item.icon, 15)),
-                h('span', { class: 'small truncate' }, r.item.name)),
+              h('span', { class: 'small truncate' }, r.item.name),
               h('span', { class: 'small strong tnum nowrap' },
                 `${fmtInt(r.held)} / ${fmtInt(r.target)}`)),
             meter(r.ratio))))

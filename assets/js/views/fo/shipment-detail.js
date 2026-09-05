@@ -32,7 +32,7 @@ export function render(main, params) {
 
     h('div', { class: 'bento' },
       h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('box', 'sky'),
+        h('div', { class: 'row' }, tile('box'),
           h('div', { class: 'card__title' }, 'Requested items')),
         linesTable(db, shipment.lines))),
 
@@ -42,7 +42,7 @@ export function render(main, params) {
         pfi && pfi.status !== 'NOT_REQUIRED'
           ? pfiPanel(db, pfi)
           : card({},
-            h('div', { class: 'row' }, tile('seal', 'sage'),
+            h('div', { class: 'row' }, tile('seal'),
               h('div', {},
                 h('div', { class: 'card__title' }, 'Proforma invoice'),
                 h('div', { class: 'small dim' }, 'Not required for this site'))),
@@ -51,7 +51,7 @@ export function render(main, params) {
               + 'shipment as soon as it is picked up.'))),
 
       h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('user', 'lilac'),
+        h('div', { class: 'row' }, tile('user'),
           h('div', { class: 'card__title' }, 'Who is handling this')),
         h('div', { class: 'kv' },
           h('span', { class: 'kv__k' }, 'Requested by'),

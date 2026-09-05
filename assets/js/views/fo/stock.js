@@ -1,7 +1,6 @@
 // FO stock — one card per allocated item, count editable in place.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { icon } from '../../ui/icons.js';
 import {
   card, tile, btn, meter, empty, sectionHead, numberInput, toast, badge,
 } from '../../ui/components.js';
@@ -58,7 +57,6 @@ function stockCard(row, site) {
 
   return card({ variant: 'card--tight' },
     h('div', { class: 'row-wrap' },
-      h('span', { class: `tile tile--${item.tone}` }, icon(item.icon, 22)),
       h('div', { class: 'grow', style: { minWidth: '160px' } },
         h('div', { class: 'row-wrap' },
           h('span', { class: 'strong truncate', title: item.name }, item.name),

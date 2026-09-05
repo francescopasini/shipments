@@ -34,7 +34,6 @@ export function renderList(main) {
         onClick: () => navigate(`/bo/trials/${trial.id}`),
       },
       h('div', { class: 'row-wrap' },
-        tile('flask', 'lilac'),
         h('div', { class: 'grow', style: { minWidth: '180px' } },
           h('div', { class: 'strong truncate' }, `${trial.code} · ${trial.name}`),
           h('div', { class: 'small dim truncate' }, `${trial.sponsor} · ${trial.phase}`)),
@@ -73,7 +72,7 @@ export function renderDetail(main, params) {
       h('div', { class: 'row-between' },
         h('div', { class: 'row' },
           back,
-          tile('flask', 'lilac'),
+          tile('flask'),
           h('div', {},
             h('div', { class: 'page-head__title' }, `${trial.code} · ${trial.name}`),
             h('div', { class: 'small dim' }, `${trial.sponsor} · ${trial.phase}`))),
@@ -90,7 +89,7 @@ export function renderDetail(main, params) {
     h('div', { class: 'bento' },
       h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row-between' },
-          h('div', { class: 'row' }, tile('calendar', 'butter'),
+          h('div', { class: 'row' }, tile('calendar'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Cadences'),
               h('div', { class: 'small dim' },
@@ -110,14 +109,12 @@ export function renderDetail(main, params) {
           h('div', { class: 'row-wrap' }, ...cadence.lines.map((line) => {
             const item = db.items.find((it) => it.id === line.itemId);
             if (!item) return null;
-            return h('div', { class: 'row', style: { gap: '7px' } },
-              h('span', { class: `tile tile--${item.tone} tile--sm` }, icon(item.icon, 15)),
-              h('span', { class: 'small' }, `${item.name} × ${fmtInt(line.suggestedQty)}`));
+            return h('span', { class: 'small' }, `${item.name} × ${fmtInt(line.suggestedQty)}`);
           })))))
           : empty('No cadences configured for this trial.', 'calendar'))),
 
       h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('building', 'sage'),
+        h('div', { class: 'row' }, tile('building'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Sites'),
             h('div', { class: 'small dim' }, 'Stock held against allocation'))),
@@ -129,8 +126,6 @@ export function renderDetail(main, params) {
           },
           h('div', { class: 'row-between' },
             h('div', { class: 'row', style: { minWidth: 0 } },
-              h('span', { class: `tile tile--${site.active ? 'sage' : 'rose'} tile--sm` },
-                icon('building', 16)),
               h('div', { style: { minWidth: 0 } },
                 h('div', { class: 'small strong truncate' }, `${site.code} · ${site.address.city}`),
                 h('div', { class: 'small dim truncate' }, countryName(site.address.country)))),
@@ -163,7 +158,6 @@ function openCadenceDialog(trial) {
         onChange: (e) => quantities.set(item.id, Math.max(0, Math.round(Number(e.target.value) || 0))),
       });
       return h('div', { class: 'row' },
-        h('span', { class: `tile tile--${item.tone} tile--sm` }, icon(item.icon, 15)),
         h('div', { class: 'grow', style: { minWidth: 0 } },
           h('div', { class: 'small strong truncate' }, item.name),
           h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),

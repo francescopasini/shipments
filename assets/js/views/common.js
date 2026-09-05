@@ -3,25 +3,13 @@
 import { h, append, fmtInt, fmtAgo, fmtDate, fmtMoney } from '../ui/el.js';
 import { icon } from '../ui/icons.js';
 import { card, actionCard, tile, badge, shipmentBadge, pfiBadge, avatar, timeline } from '../ui/components.js';
-import { SHIPMENT_STATUS_META } from '../domain/constants.js';
 import { getItem, getSite, getTrial, getCadence, userName, unitsIn, pfiValue } from '../domain/selectors.js';
 
-/** Small round icon per item category, used to preview a shipment's contents. */
-export function itemDots(db, lines, max = 5) {
-  const shown = lines.slice(0, max);
-  return h('div', { class: 'row', style: { gap: '6px' } },
-    ...shown.map((l) => {
-      const item = getItem(db, l.itemId);
-      if (!item) return null;
-      return h('span', {
-        class: `tile tile--${item.tone} tile--sm`,
-        title: `${item.name} · ${l.qty} ${item.unit}${l.qty === 1 ? '' : 's'}`,
-      }, icon(item.icon, 15));
-    }),
-    lines.length > max ? h('span', { class: 'small dim' }, `+${lines.length - max}`) : null);
-}
-
-/** One shipment as a full-width clickable row, in the same shape as a task card. */
+/**
+ * One shipment as a full-width clickable row. No icons here: a long list does
+ * not repeat the section's own icon on every row, and the shipment's items are
+ * summarised by their unit count rather than a row of category icons.
+ */
 export function shipmentCard(db, shipment, onOpen, { showSite = false } = {}) {
   const cadence = getCadence(db, shipment.cadenceId);
   const site = getSite(db, shipment.siteId);
@@ -35,11 +23,9 @@ export function shipmentCard(db, shipment, onOpen, { showSite = false } = {}) {
 
   return actionCard({ variant: 'card--tight', onClick: onOpen },
     h('div', { class: 'row-wrap' },
-      tile('box', SHIPMENT_STATUS_META[shipment.status].tone),
       h('div', { class: 'grow', style: { minWidth: '140px' } },
         h('div', { class: 'strong truncate' }, shipment.code),
         h('div', { class: 'small dim truncate' }, sub)),
-      itemDots(db, shipment.lines),
       h('div', { class: 'right small dim nowrap' },
         h('div', {}, `${fmtInt(unitsIn(shipment))} units`),
         h('div', {}, fmtAgo(shipment.updatedAt))),
@@ -59,11 +45,9 @@ export function linesTable(db, lines) {
         const item = getItem(db, l.itemId);
         return h('tr', {},
           h('td', { class: 'col-head' },
-            h('div', { class: 'row' },
-              h('span', { class: `tile tile--${item.tone} tile--sm` }, icon(item.icon, 15)),
-              h('div', {},
-                h('div', {}, item.name),
-                item.coldChain ? h('div', { class: 'small dim' }, 'Cold chain') : null))),
+            h('div', {},
+              h('div', {}, item.name),
+              item.coldChain ? h('div', { class: 'small dim' }, 'Cold chain') : null)),
           h('td', { class: 'dim' }, item.code),
           h('td', { class: 'tnum strong' }, `${fmtInt(l.qty)} ${item.unit}${l.qty === 1 ? '' : 's'}`));
       }))));
@@ -77,7 +61,7 @@ export function pfiPanel(db, pfi, { actions = null, showLines = true } = {}) {
   return card({},
     h('div', { class: 'row-between' },
       h('div', { class: 'row' },
-        tile('seal', 'butter'),
+        tile('seal'),
         h('div', {},
           h('div', { class: 'card__title' }, 'Proforma invoice'),
           h('div', { class: 'small dim' }, pfi.number))),
@@ -124,7 +108,7 @@ export function pfiPanel(db, pfi, { actions = null, showLines = true } = {}) {
 export function shipmentTimeline(db, shipment) {
   const entries = [...shipment.timeline].reverse();
   return card({},
-    h('div', { class: 'row' }, tile('clock', 'lilac'), h('div', { class: 'card__title' }, 'History')),
+    h('div', { class: 'row' }, tile('clock'), h('div', { class: 'card__title' }, 'History')),
     timeline(entries, (entry) => h('div', { class: 'stack-sm' },
       h('div', { class: 'row-wrap' },
         shipmentBadge(entry.status),
@@ -144,7 +128,7 @@ export function shipmentHeader(db, shipment, backAction, ...actions) {
     h('div', { class: 'row-between' },
       h('div', { class: 'row' },
         backAction,
-        tile('box', SHIPMENT_STATUS_META[shipment.status].tone),
+        tile('box'),
         h('div', {},
           h('div', { class: 'page-head__title' }, shipment.code),
           h('div', { class: 'small dim' },

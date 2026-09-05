@@ -1,7 +1,6 @@
 // FO shipment list + the "request a new shipment" dialog.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { icon } from '../../ui/icons.js';
 import {
   card, btn, empty, sectionHead, dialog, select, numberInput, field, toast,
 } from '../../ui/components.js';
@@ -171,7 +170,6 @@ function openRequestDialog() {
 
       append(node, [h('div', { class: 'stack-sm' },
         h('div', { class: 'row' },
-          h('span', { class: `tile tile--${item.tone} tile--sm` }, icon(item.icon, 15)),
           h('div', { class: 'grow', style: { minWidth: 0 } },
             h('div', { class: 'small strong', title: item.name }, item.name),
             h('div', { class: 'small dim' },

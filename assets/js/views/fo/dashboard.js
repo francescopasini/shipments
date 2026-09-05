@@ -43,25 +43,25 @@ export function render(main) {
       // --- headline metrics ---
       h('div', { class: 'col-3' }, metric(
         fmtInt(open.length), 'Open shipments',
-        `${fmtInt(shipments.length)} in total`, 'box', 'sky',
+        `${fmtInt(shipments.length)} in total`, 'box',
       )),
       h('div', { class: 'col-3' }, metric(
         fmtInt(inTransit), 'Units on their way',
-        'Leaving the central deposit', 'truck', 'lilac',
+        'Leaving the central deposit', 'truck',
       )),
       h('div', { class: 'col-3' }, metric(
         `${Math.round(coverage * 100)}%`, 'Stock coverage',
-        'Held against site allocation', 'warehouse', 'sage',
+        'Held against site allocation', 'warehouse',
       )),
       h('div', { class: 'col-3' }, metric(
         fmtInt(unread), 'Unread notices',
-        unread ? 'Waiting for you' : 'All caught up', 'bell', unread ? 'rose' : 'sage',
+        unread ? 'Waiting for you' : 'All caught up', 'bell',
       )),
 
       // --- status breakdown ---
       h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row' },
-          tile('chart', 'sky'),
+          tile('chart'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Shipments by status'),
             h('div', { class: 'small dim' }, 'Every shipment this site has raised'))),
@@ -77,7 +77,7 @@ export function render(main) {
       // --- next cadence ---
       h('div', { class: 'col-5' }, card({},
         h('div', { class: 'row' },
-          tile('calendar', 'butter'),
+          tile('calendar'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Next cadence'),
             h('div', { class: 'small dim' }, `You are in study week ${week}`))),
@@ -96,7 +96,7 @@ export function render(main) {
       // --- stock needing attention ---
       h('div', { class: 'col-5' }, card({},
         h('div', { class: 'row' },
-          tile('warehouse', lowRows.length ? 'rose' : 'sage'),
+          tile('warehouse'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Stock needing attention'),
             h('div', { class: 'small dim' }, 'Below half of the site target'))),
@@ -113,7 +113,7 @@ export function render(main) {
       h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row-between' },
           h('div', { class: 'row' },
-            tile('clock', 'lilac'),
+            tile('clock'),
             h('div', { class: 'card__title' }, 'Latest activity')),
           btn('All shipments', {
             variant: 'ghost', size: 'sm', onClick: () => navigate('/fo/shipments'),
