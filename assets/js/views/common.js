@@ -21,28 +21,30 @@ export function itemDots(db, lines, max = 5) {
     lines.length > max ? h('span', { class: 'small dim' }, `+${lines.length - max}`) : null);
 }
 
-/** One shipment as a clickable card. */
+/** One shipment as a full-width clickable row, in the same shape as a task card. */
 export function shipmentCard(db, shipment, onOpen, { showSite = false } = {}) {
   const cadence = getCadence(db, shipment.cadenceId);
   const site = getSite(db, shipment.siteId);
   const trial = getTrial(db, shipment.trialId);
 
+  const sub = [
+    showSite && site ? `${site.code} · ${site.address.city}` : null,
+    trial ? trial.code : null,
+    cadence ? `${cadence.name} · week ${cadence.week}` : null,
+  ].filter(Boolean).join(' · ');
+
   return actionCard({ variant: 'card--tight', onClick: onOpen },
-    h('div', { class: 'row-between' },
-      h('div', { class: 'row' },
-        tile('box', SHIPMENT_STATUS_META[shipment.status].tone),
-        h('div', {},
-          h('div', { class: 'strong' }, shipment.code),
-          h('div', { class: 'small dim' },
-            showSite && site ? `${site.code} · ${site.address.city}` : (trial ? trial.code : '')))),
-      shipmentBadge(shipment.status)),
-    h('div', { class: 'row-between' },
+    h('div', { class: 'row-wrap' },
+      tile('box', SHIPMENT_STATUS_META[shipment.status].tone),
+      h('div', { class: 'grow', style: { minWidth: '140px' } },
+        h('div', { class: 'strong truncate' }, shipment.code),
+        h('div', { class: 'small dim truncate' }, sub)),
       itemDots(db, shipment.lines),
-      h('div', { class: 'small dim right' },
+      h('div', { class: 'right small dim nowrap' },
         h('div', {}, `${fmtInt(unitsIn(shipment))} units`),
-        h('div', {}, fmtAgo(shipment.updatedAt)))),
-    cadence ? h('div', { class: 'small muted truncate' },
-      `${cadence.name} · week ${cadence.week}`) : null);
+        h('div', {}, fmtAgo(shipment.updatedAt))),
+      shipmentBadge(shipment.status),
+      icon('arrowRight', 17)));
 }
 
 /** Read-only table of a shipment's lines. */

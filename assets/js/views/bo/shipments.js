@@ -5,7 +5,7 @@ import { card, btn, empty, sectionHead, select, field } from '../../ui/component
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import { SHIPMENT_STATUS_ORDER, SHIPMENT_STATUS_META, COUNTRIES } from '../../domain/constants.js';
-import { allShipments, getSite } from '../../domain/selectors.js';
+import { allShipments, allTrials, getSite } from '../../domain/selectors.js';
 import { shipmentCard, chipStrip } from '../common.js';
 
 const filters = { status: 'ALL', trial: 'ALL', country: 'ALL' };
@@ -41,7 +41,7 @@ export function render(main) {
       h('div', { class: 'filters' },
         h('div', { style: { minWidth: '220px' } }, field('Trial', select([
           { value: 'ALL', label: 'All trials' },
-          ...db.trials.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
+          ...allTrials(db).map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
         ], {
           value: filters.trial,
           onChange: (e) => { filters.trial = e.target.value; rerender(); },
@@ -64,8 +64,9 @@ export function render(main) {
           : null)),
 
     visible.length
-      ? h('div', { class: 'bento' }, ...visible.map((s) => h('div', { class: 'col-4' },
-        shipmentCard(db, s, () => navigate(`/bo/shipments/${s.id}`), { showSite: true }))))
+      ? h('div', { class: 'stack-sm' }, ...visible.map((s) => shipmentCard(
+        db, s, () => navigate(`/bo/shipments/${s.id}`), { showSite: true },
+      )))
       : card({}, empty('No shipments match those filters.', 'search',
         btn('Clear filters', {
           variant: 'primary',

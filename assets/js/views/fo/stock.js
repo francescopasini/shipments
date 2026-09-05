@@ -34,7 +34,7 @@ export function render(main) {
         + 'recount — the deposit uses this to work out what you can still request.')),
 
     rows.length
-      ? h('div', { class: 'bento' }, ...rows.map((row) => h('div', { class: 'col-4' }, stockCard(row, site))))
+      ? h('div', { class: 'stack-sm' }, ...rows.map((row) => stockCard(row, site)))
       : card({}, empty('This site has no allocated items yet.', 'warehouse')),
   ]);
 }
@@ -57,34 +57,31 @@ function stockCard(row, site) {
   });
 
   return card({ variant: 'card--tight' },
-    h('div', { class: 'row' },
+    h('div', { class: 'row-wrap' },
       h('span', { class: `tile tile--${item.tone}` }, icon(item.icon, 22)),
-      h('div', { class: 'grow', style: { minWidth: 0 } },
-        h('div', { class: 'strong truncate', title: item.name }, item.name),
-        h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),
-      item.coldChain ? badge('Cold chain', 'sky') : null),
+      h('div', { class: 'grow', style: { minWidth: '160px' } },
+        h('div', { class: 'row-wrap' },
+          h('span', { class: 'strong truncate', title: item.name }, item.name),
+          item.coldChain ? badge('Cold chain', 'sky') : null),
+        h('div', { class: 'small dim truncate' },
+          `${item.code} · per ${item.unit}`
+          + (inbound ? ` · ${fmtInt(inbound)} on the way` : ''))),
 
-    h('div', { class: 'row-between' },
-      h('div', { class: 'field', style: { maxWidth: '108px' } },
+      h('div', { style: { width: '170px' } },
+        h('div', { class: 'row-between small' },
+          h('span', { class: ratio < 0.5 ? 'strong' : 'dim' },
+            `${Math.round(ratio * 100)}% of target`),
+          h('span', { class: 'dim tnum' }, `${fmtInt(held)} / ${fmtInt(target)}`)),
+        meter(ratio)),
+
+      h('div', { class: 'small dim right nowrap' },
+        row.requestable > 0
+          ? `may request ${fmtInt(row.requestable)} ${item.unit}${row.requestable === 1 ? '' : 's'}`
+          : 'at target'),
+
+      h('div', { class: 'field', style: { width: '90px' } },
         h('span', { class: 'field__label' }, 'Counted'),
-        input),
-      h('div', { class: 'right' },
-        h('div', { class: 'small dim' }, 'Site target'),
-        h('div', { class: 'strong tnum' }, fmtInt(target)))),
-
-    meter(ratio),
-
-    h('div', { class: 'row-between small' },
-      h('span', { class: ratio < 0.5 ? 'strong' : 'dim' },
-        `${Math.round(ratio * 100)}% of target`),
-      inbound
-        ? h('span', { class: 'dim' }, `${fmtInt(inbound)} on the way`)
-        : h('span', { class: 'dim' }, 'nothing inbound')),
-
-    h('div', { class: 'small dim' },
-      row.requestable > 0
-        ? `You may still request ${fmtInt(row.requestable)} ${item.unit}${row.requestable === 1 ? '' : 's'}.`
-        : 'At target — nothing to request.'));
+        input)));
 }
 
 export { tile };

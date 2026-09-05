@@ -11,7 +11,7 @@ import * as store from '../../store.js';
 import { COUNTRIES, siteLocation } from '../../domain/constants.js';
 import { totalAt } from '../../domain/stock.js';
 import {
-  getTrial, coordinatorsForSite, userName, shippingCoordinators,
+  getTrial, coordinatorsForSite, userName, shippingCoordinators, allTrials, byCode,
   siteStockRows, siteCoverage, shipmentsForSite, cadencesForTrial, countryName,
 } from '../../domain/selectors.js';
 import { shipmentCard, chipStrip } from '../common.js';
@@ -24,12 +24,12 @@ export function renderList(main) {
   const db = store.getDb();
   const rerender = () => { main.replaceChildren(); renderList(main); };
 
-  const visible = db.sites.filter((site) => {
+  const visible = byCode(db.sites.filter((site) => {
     if (filters.scope === 'ACTIVE' && !site.active) return false;
     if (filters.scope === 'INACTIVE' && site.active) return false;
     if (filters.trial !== 'ALL' && site.trialId !== filters.trial) return false;
     return true;
-  });
+  }));
 
   append(main, [
     sectionHead('Sites', `${visible.length} of ${db.sites.length} shown`,
@@ -45,15 +45,14 @@ export function renderList(main) {
       ], filters.scope, (v) => { filters.scope = v; rerender(); }),
       h('div', { style: { maxWidth: '320px' } }, field('Trial', select([
         { value: 'ALL', label: 'All trials' },
-        ...db.trials.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
+        ...allTrials(db).map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
       ], {
         value: filters.trial,
         onChange: (e) => { filters.trial = e.target.value; rerender(); },
       })))),
 
     visible.length
-      ? h('div', { class: 'bento' }, ...visible.map((site) => h('div', { class: 'col-4' },
-        siteCard(db, site))))
+      ? h('div', { class: 'stack-sm' }, ...visible.map((site) => siteCard(db, site)))
       : card({}, empty('No sites match those filters.', 'building')),
   ]);
 }
@@ -68,20 +67,22 @@ function siteCard(db, site) {
     class: 'card card--tight card--action',
     onClick: () => navigate(`/bo/sites/${site.id}`),
   },
-  h('div', { class: 'row-between' },
-    h('div', { class: 'row' },
-      tile('building', site.active ? 'sage' : 'rose'),
-      h('div', {},
-        h('div', { class: 'strong' }, site.code),
-        h('div', { class: 'small dim' }, `${site.address.city}, ${site.address.country}`))),
-    badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose')),
-  h('div', { class: 'small muted truncate' }, site.name),
-  meter(coverage),
-  h('div', { class: 'row-between small dim' },
-    h('span', {}, trial ? trial.code : ''),
-    h('span', {}, `${Math.round(coverage * 100)}% stocked · ${open} open`)),
-  h('div', { class: 'small dim truncate' },
-    `Coordinator: ${userName(db, site.shippingCoordinatorId)}`));
+  h('div', { class: 'row-wrap' },
+    tile('building', site.active ? 'sage' : 'rose'),
+    h('div', { class: 'grow', style: { minWidth: '160px' } },
+      h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
+      h('div', { class: 'small dim truncate' },
+        `${site.address.city}, ${countryName(site.address.country)}${trial ? ` · ${trial.code}` : ''}`)),
+    h('div', { style: { width: '170px' } },
+      h('div', { class: 'row-between small dim' },
+        h('span', {}, 'Stock'),
+        h('span', { class: 'tnum' }, `${Math.round(coverage * 100)}%`)),
+      meter(coverage)),
+    h('div', { class: 'small dim right nowrap' },
+      h('div', { class: 'truncate' }, userName(db, site.shippingCoordinatorId)),
+      h('div', {}, `${open} open`)),
+    badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose'),
+    icon('arrowRight', 17)));
 }
 
 /* ---------- detail ---------- */
@@ -217,8 +218,9 @@ export function renderDetail(main, params) {
             h('div', { class: 'card__title' }, 'Shipments'),
             h('div', { class: 'small dim' }, `${shipments.length} raised by this site`))),
         shipments.length
-          ? h('div', { class: 'bento' }, ...shipments.slice(0, 6).map((s) => h('div', { class: 'col-4' },
-            shipmentCard(db, s, () => navigate(`/bo/shipments/${s.id}`)))))
+          ? h('div', { class: 'stack-sm' }, ...shipments.slice(0, 6).map((s) => shipmentCard(
+            db, s, () => navigate(`/bo/shipments/${s.id}`),
+          )))
           : empty('This site has not requested anything yet.', 'box'))),
     ),
   ]);
@@ -280,8 +282,9 @@ export function renderNew(main) {
     postalCode: input({ placeholder: '00100' }),
     city: input({ placeholder: 'City' }),
   };
+  const trialOptions = allTrials(db);
   let country = 'IT';
-  let trialId = db.trials[0] ? db.trials[0].id : null;
+  let trialId = trialOptions[0] ? trialOptions[0].id : null;
   let coordinatorId = coordinators[0] ? coordinators[0].id : null;
   let requiresPfi = true;
   let active = true;
@@ -349,7 +352,7 @@ export function renderNew(main) {
         h('div', { class: 'col-3' }, field('Site code', fields.code, 'Shown throughout the app.')),
         h('div', { class: 'col-9' }, field('Site name', fields.name)),
         h('div', { class: 'col-6' }, field('Trial', select(
-          db.trials.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
+          trialOptions.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
           { value: trialId, onChange: (e) => { trialId = e.target.value; } },
         ), 'Decides which cadences the site may request.')),
         h('div', { class: 'col-6' }, field('Shipping coordinator', select(

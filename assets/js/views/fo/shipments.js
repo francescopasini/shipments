@@ -51,8 +51,9 @@ export function render(main) {
       chipStrip(options, statusFilter, (value) => { statusFilter = value; rerender(main); })),
 
     visible.length
-      ? h('div', { class: 'bento' }, ...visible.map((s) => h('div', { class: 'col-4' },
-        shipmentCard(db, s, () => navigate(`/fo/shipments/${s.id}`)))))
+      ? h('div', { class: 'stack-sm' }, ...visible.map((s) => shipmentCard(
+        db, s, () => navigate(`/fo/shipments/${s.id}`),
+      )))
       : card({}, empty(
         statusFilter === 'ALL'
           ? 'This site has not requested anything yet.'

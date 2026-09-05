@@ -9,7 +9,7 @@ import {
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import {
-  getTrial, sitesForTrial, cadencesForTrial, siteCoverage, countryName,
+  getTrial, sitesForTrial, cadencesForTrial, siteCoverage, countryName, allTrials,
 } from '../../domain/selectors.js';
 
 /* ---------- list ---------- */
@@ -23,30 +23,26 @@ export function renderList(main) {
         variant: 'primary', iconName: 'plus', onClick: () => navigate('/bo/trials/new'),
       })),
 
-    h('div', { class: 'bento' }, ...db.trials.map((trial) => {
+    h('div', { class: 'stack-sm' }, ...allTrials(db).map((trial) => {
       const sites = sitesForTrial(db, trial.id);
       const cadences = cadencesForTrial(db, trial.id);
       const shipments = db.shipments.filter((s) => s.trialId === trial.id);
 
-      return h('div', { class: 'col-4' }, h('button', {
+      return h('button', {
         type: 'button',
-        class: 'card card--action',
+        class: 'card card--tight card--action',
         onClick: () => navigate(`/bo/trials/${trial.id}`),
       },
-      h('div', { class: 'row-between' },
-        h('div', { class: 'row' },
-          tile('flask', 'lilac'),
-          h('div', {},
-            h('div', { class: 'strong' }, trial.code),
-            h('div', { class: 'small dim' }, trial.phase))),
-        badge(trial.status, 'sage')),
-      h('div', { class: 'strong' }, trial.name),
-      h('div', { class: 'small muted' }, trial.sponsor),
-      h('hr', { class: 'divider' }),
-      h('div', { class: 'row-between small dim' },
-        h('span', {}, `${sites.filter((s) => s.active).length} active sites`),
-        h('span', {}, `${cadences.length} cadences`),
-        h('span', {}, `${shipments.length} shipments`))));
+      h('div', { class: 'row-wrap' },
+        tile('flask', 'lilac'),
+        h('div', { class: 'grow', style: { minWidth: '180px' } },
+          h('div', { class: 'strong truncate' }, `${trial.code} · ${trial.name}`),
+          h('div', { class: 'small dim truncate' }, `${trial.sponsor} · ${trial.phase}`)),
+        h('div', { class: 'small dim right nowrap' },
+          h('div', {}, `${sites.filter((s) => s.active).length} active sites`),
+          h('div', {}, `${cadences.length} cadences · ${shipments.length} shipments`)),
+        badge(trial.status, 'sage'),
+        icon('arrowRight', 17)));
     })),
   ]);
 }

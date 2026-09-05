@@ -6,6 +6,7 @@ import { card, btn, empty, sectionHead, select, field, metric } from '../../ui/c
 import * as store from '../../store.js';
 import { CENTRAL, TRANSIT, matrixLocations, balance, totalAt } from '../../domain/stock.js';
 import { COUNTRIES } from '../../domain/constants.js';
+import { allTrials } from '../../domain/selectors.js';
 
 const filters = { location: 'ALL', country: 'ALL', trial: 'ALL', hideEmpty: true };
 
@@ -68,7 +69,7 @@ export function render(main) {
         }))),
         h('div', { style: { minWidth: '220px' } }, field('Trial', select([
           { value: 'ALL', label: 'All trials' },
-          ...db.trials.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
+          ...allTrials(db).map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
         ], {
           value: filters.trial,
           onChange: (e) => { filters.trial = e.target.value; rerender(); },

@@ -21,13 +21,19 @@ export const cadencesForTrial = (db, trialId) => db.cadences
   .filter((c) => c.trialId === trialId)
   .sort((a, b) => a.week - b.week);
 
-export const sitesForTrial = (db, trialId) => db.sites.filter((s) => s.trialId === trialId);
+/** Sort sites or trials alphabetically by their code — the identifier shown first on every card. */
+export const byCode = (rows) => [...rows].sort((a, b) => a.code.localeCompare(b.code));
+
+export const allSites = (db) => byCode(db.sites);
+export const allTrials = (db) => byCode(db.trials);
+
+export const sitesForTrial = (db, trialId) => byCode(db.sites.filter((s) => s.trialId === trialId));
 
 export const coordinatorsForSite = (db, siteId) => db.users
   .filter((u) => u.role === 'FO' && u.siteIds.includes(siteId));
 
 export const sitesForUser = (db, user) => (user && user.role === 'FO'
-  ? user.siteIds.map((id) => getSite(db, id)).filter(Boolean)
+  ? byCode(user.siteIds.map((id) => getSite(db, id)).filter(Boolean))
   : []);
 
 /* ---------- shipments ---------- */
@@ -37,7 +43,7 @@ export const shipmentsForSite = (db, siteId) => db.shipments
   .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
 export const allShipments = (db) => [...db.shipments]
-  .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
 export const openShipments = (db) => db.shipments.filter((s) => s.status !== 'DELIVERED');
 
@@ -66,7 +72,7 @@ export const openTasksFor = (db, userId) => db.tasks
 
 export const doneTasksFor = (db, userId) => db.tasks
   .filter((t) => t.assigneeId === userId && t.status === 'DONE')
-  .sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
+  .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
 /* ---------- notifications ---------- */
 

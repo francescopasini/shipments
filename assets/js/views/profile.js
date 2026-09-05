@@ -8,7 +8,7 @@ import {
 import { navigate } from '../router.js';
 import * as store from '../store.js';
 import { BO_ROLE_META } from '../domain/constants.js';
-import { sitesForUser, getTrial, openTasksFor, getSite } from '../domain/selectors.js';
+import { sitesForUser, getTrial, openTasksFor, getSite, byCode } from '../domain/selectors.js';
 
 export function render(main) {
   const db = store.getDb();
@@ -46,9 +46,9 @@ export function render(main) {
             h('div', {},
               h('div', { class: 'card__title' }, 'Sites you can access'),
               h('div', { class: 'small dim' }, 'Switch between them from the sidebar'))),
-          h('div', { class: 'bento' }, ...sitesForUser(db, user).map((site) => {
+          h('div', { class: 'stack-sm' }, ...sitesForUser(db, user).map((site) => {
             const trial = getTrial(db, site.trialId);
-            return h('div', { class: 'col-4' }, h('button', {
+            return h('button', {
               type: 'button',
               class: 'card card--tight card--action',
               onClick: () => {
@@ -60,9 +60,10 @@ export function render(main) {
             h('div', { class: 'row' },
               h('span', { class: 'tile tile--sage tile--sm' }, icon('building', 17)),
               h('div', { class: 'grow', style: { minWidth: 0 } },
-                h('div', { class: 'strong truncate' }, site.code),
-                h('div', { class: 'small dim truncate' }, site.address.city)),
-              site.id === db.currentSiteId ? badge('Current', 'sage') : null)));
+                h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
+                h('div', { class: 'small dim truncate' },
+                  `${site.address.city}${trial ? ` · ${trial.code}` : ''}`)),
+              site.id === db.currentSiteId ? badge('Current', 'sage') : null));
           }))))
         : h('div', { class: 'col-12' }, card({},
           h('div', { class: 'row' }, tile('building', 'butter'),
@@ -75,21 +76,20 @@ export function render(main) {
 }
 
 function coordinatedSites(db, user) {
-  const sites = db.sites.filter((s) => s.shippingCoordinatorId === user.id);
+  const sites = byCode(db.sites.filter((s) => s.shippingCoordinatorId === user.id));
   if (!sites.length) return empty('You are not the shipping coordinator for any site.', 'building');
-  return h('div', { class: 'bento' }, ...sites.map((site) => h('div', { class: 'col-4' },
-    h('button', {
-      type: 'button',
-      class: 'card card--tight card--action',
-      onClick: () => navigate(`/bo/sites/${site.id}`),
-    },
-    h('div', { class: 'row' },
-      h('span', { class: 'tile tile--butter tile--sm' }, icon('building', 17)),
-      h('div', { class: 'grow', style: { minWidth: 0 } },
-        h('div', { class: 'strong truncate' }, `${site.code} · ${site.address.city}`),
-        h('div', { class: 'small dim truncate' },
-          site.requiresPfiApproval ? 'PFI approval required' : 'No PFI approval')),
-      badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose'))))));
+  return h('div', { class: 'stack-sm' }, ...sites.map((site) => h('button', {
+    type: 'button',
+    class: 'card card--tight card--action',
+    onClick: () => navigate(`/bo/sites/${site.id}`),
+  },
+  h('div', { class: 'row' },
+    h('span', { class: 'tile tile--butter tile--sm' }, icon('building', 17)),
+    h('div', { class: 'grow', style: { minWidth: 0 } },
+      h('div', { class: 'strong truncate' }, `${site.code} · ${site.address.city}`),
+      h('div', { class: 'small dim truncate' },
+        site.requiresPfiApproval ? 'PFI approval required' : 'No PFI approval')),
+    badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose')))));
 }
 
 /**

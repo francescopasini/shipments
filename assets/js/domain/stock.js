@@ -84,12 +84,12 @@ export function setSiteCount(db, siteId, itemId, newQty) {
   });
 }
 
-/** Ordered list of locations for the BO stock matrix. */
+/** Ordered list of locations for the BO stock matrix — site columns alphabetical by code. */
 export function matrixLocations(db) {
   return [
     { id: CENTRAL, label: 'Central deposit', kind: 'central' },
     { id: TRANSIT, label: 'In transit', kind: 'transit' },
-    ...db.sites.map((site) => ({
+    ...[...db.sites].sort((a, b) => a.code.localeCompare(b.code)).map((site) => ({
       id: siteLocation(site.id),
       label: `${site.code} · ${site.address.city}`,
       kind: 'site',
