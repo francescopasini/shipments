@@ -49,13 +49,13 @@
 /* The 3D artwork is the icon — no container behind it. It occupies exactly the
    space the old cream tile did. One version of every icon, no colour variants. */
 .tile {
-  width: 46px;
-  height: 46px;
+  width: 64px;
+  height: 64px;
   flex: none;
   display: block;
   object-fit: contain;
 }
-.tile--sm { width: 34px; height: 34px; }
+.tile--sm { width: 46px; height: 46px; }
 
 /* Fallback for the few names the 3D pack has no artwork for: the inline glyph,
    centred in the same footprint. */

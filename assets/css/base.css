@@ -181,4 +181,6 @@ svg { display: block; }
 }
 
 /* 3D nav icons — keep their footprint in the flex row */
-.nav__icon { width: 24px; height: 24px; flex: none; object-fit: contain; }
+.nav__icon { width: 32px; height: 32px; flex: none; object-fit: contain; }
+/* the brand mark leads the sidebar, so it runs larger than the section icons */
+.nav__brand-mark { width: 76px; height: 76px; flex: none; object-fit: contain; }

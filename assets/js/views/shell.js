@@ -60,16 +60,22 @@ export function renderShell(root) {
 
 function brand(side) {
   return h('div', { class: 'nav__brand' },
-    tile('truck'),
+    brandMark(),
     h('div', {},
       h('div', { class: 'nav__brand-name' }, 'Shipments'),
       h('div', { class: 'nav__brand-sub' }, side === 'fo' ? 'Site front office' : 'Deposit back office')));
 }
 
 const navIcon = (name) => {
-  const img = iconImg(name, 24);
+  const img = iconImg(name, 32);
   if (img) img.className = 'nav__icon';
-  return img || icon(name, 19);
+  return img || icon(name, 22);
+};
+
+const brandMark = () => {
+  const img = iconImg('truck', 76);
+  if (img) img.className = 'nav__brand-mark';
+  return img || icon('truck', 40);
 };
 
 function navLink(section, path, db, user, side) {
