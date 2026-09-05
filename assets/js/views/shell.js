@@ -58,12 +58,15 @@ export function renderShell(root) {
   return main;
 }
 
-/** The logo lockup: mark on the left, lowercase wordmark on the right.
-    Identical on both sides — the theme colour and the nav already say which. */
+/** The logo lockup: mark on the left, "Shipments" over a letter-spaced
+    "MANAGER" tagline on the right. Identical on both sides — the theme
+    colour and the nav already say which. */
 function brand() {
   return h('div', { class: 'nav__brand' },
     brandMark(),
-    h('span', { class: 'nav__brand-name' }, 'Shipments'));
+    h('div', { class: 'nav__brand-text' },
+      h('span', { class: 'nav__brand-name' }, 'Shipments'),
+      h('span', { class: 'nav__brand-tag' }, 'MANAGER')));
 }
 
 const navIcon = (name) => {

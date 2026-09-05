@@ -52,10 +52,17 @@ svg { display: block; }
   gap: 0;
   padding: 0;
 }
+.nav__brand-text { display: flex; flex-direction: column; gap: 1px; }
 .nav__brand-name {
   font: 800 31px/1 var(--font);
   letter-spacing: -1.1px;
   color: var(--ink);
+}
+.nav__brand-tag {
+  font: 700 12px/1 var(--font);
+  letter-spacing: .32em;
+  color: var(--ink);
+  padding-left: 2px;
 }
 
 .nav__group { display: flex; flex-direction: column; gap: 3px; }
