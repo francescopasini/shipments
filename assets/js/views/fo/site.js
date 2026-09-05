@@ -1,10 +1,10 @@
 // FO site profile — address, who handles the site, and its allocations.
 
-import { h, append, fmtInt } from '../../ui/el.js';
-import { card, tile, avatar, meter, empty, sectionHead, badge } from '../../ui/components.js';
+import { h, append } from '../../ui/el.js';
+import { card, tile, avatar, empty, sectionHead, badge } from '../../ui/components.js';
 import * as store from '../../store.js';
 import {
-  getTrial, coordinatorsForSite, userName, siteStockRows, siteStudyWeek,
+  getTrial, coordinatorsForSite, userName, siteStudyWeek,
   cadencesForTrial, countryName,
 } from '../../domain/selectors.js';
 
@@ -18,7 +18,6 @@ export function render(main) {
 
   const trial = getTrial(db, site.trialId);
   const peers = coordinatorsForSite(db, site.id);
-  const rows = siteStockRows(db, site);
   const cadences = cadencesForTrial(db, site.trialId);
   const week = siteStudyWeek(site);
 
@@ -79,20 +78,6 @@ export function render(main) {
               h('div', { class: 'strong truncate' }, p.name),
               h('div', { class: 'small dim truncate' }, p.email)),
             p.id === db.currentUserId ? badge('You', 'sage') : null))))),
-
-      h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('warehouse'),
-          h('div', {},
-            h('div', { class: 'card__title' }, 'Allocated items'),
-            h('div', { class: 'small dim' }, 'The most this site may hold of each item'))),
-        rows.length
-          ? h('div', { class: 'stack-sm' }, ...rows.map((r) => h('div', { class: 'stack-sm' },
-            h('div', { class: 'row-between' },
-              h('span', { class: 'small truncate' }, r.item.name),
-              h('span', { class: 'small strong tnum nowrap' },
-                `${fmtInt(r.held)} / ${fmtInt(r.target)}`)),
-            meter(r.ratio))))
-          : empty('No allocations set for this site.', 'warehouse'))),
     ),
   ]);
 }

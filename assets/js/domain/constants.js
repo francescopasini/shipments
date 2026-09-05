@@ -20,13 +20,14 @@ export const SHIPMENT_STATUS_ORDER = [
   SHIPMENT_STATUS.DELIVERED,
 ];
 
+/** Blue for a new request, green once delivered, yellow for everything in between. */
 export const SHIPMENT_STATUS_META = {
-  NEW_REQUEST:            { label: 'New request',        tone: 'sky' },
+  NEW_REQUEST:            { label: 'New request',           tone: 'sky' },
   AWAITING_PFI_APPROVAL:  { label: 'Awaiting PFI approval', tone: 'butter' },
-  READY_FOR_PREPARATION:  { label: 'Ready for preparation', tone: 'lilac' },
-  IN_PREPARATION:         { label: 'In preparation',     tone: 'lilac' },
-  SHIPPED:                { label: 'Shipped',            tone: 'sage' },
-  DELIVERED:              { label: 'Delivered',          tone: 'sage' },
+  READY_FOR_PREPARATION:  { label: 'Ready for preparation', tone: 'butter' },
+  IN_PREPARATION:         { label: 'In preparation',        tone: 'butter' },
+  SHIPPED:                { label: 'Shipped',               tone: 'butter' },
+  DELIVERED:              { label: 'Delivered',             tone: 'sage' },
 };
 
 export const PFI_STATUS = {

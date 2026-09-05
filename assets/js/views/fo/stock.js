@@ -1,12 +1,11 @@
-// FO stock — one card per allocated item, count editable in place.
+// FO stock — a read-only table of what the site holds against its allocation.
+// Stock is not maintained by hand: it moves automatically when the deposit
+// marks a shipment delivered.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import {
-  card, tile, btn, empty, sectionHead, numberInput, toast, badge,
-} from '../../ui/components.js';
+import { card, btn, empty, sectionHead, badge } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
-import { setSiteCount } from '../../domain/stock.js';
 import { siteStockRows, siteCoverage } from '../../domain/selectors.js';
 
 export function render(main) {
@@ -29,50 +28,37 @@ export function render(main) {
 
     card({ variant: 'card--tight' },
       h('p', { class: 'small muted' },
-        'Counts here are what your site physically holds. Correct them whenever you '
-        + 'recount — the deposit uses this to work out what you can still request.')),
+        'Your stock updates on its own: when the deposit marks a shipment delivered, '
+        + 'its items are added here. The target is the most this site may hold of each '
+        + 'item, and what you may still request is the difference.')),
 
     rows.length
-      ? h('div', { class: 'stack-sm' }, ...rows.map((row) => stockCard(row, site)))
+      ? card({}, stockTable(rows))
       : card({}, empty('This site has no allocated items yet.', 'warehouse')),
   ]);
 }
 
-function stockCard(row, site) {
-  const { item, held, target, inbound } = row;
-
-  // Uncontrolled input: commit on change/blur so the re-render never steals focus.
-  const input = numberInput({
-    min: 0,
-    step: 1,
-    value: held,
-    'aria-label': `${item.name} counted quantity`,
-    onChange: (e) => {
-      const next = Math.max(0, Math.round(Number(e.target.value) || 0));
-      if (next === held) return;
-      store.update((d) => setSiteCount(d, site.id, item.id, next));
-      toast(`${item.name} set to ${fmtInt(next)} ${item.unit}${next === 1 ? '' : 's'}.`, 'info');
-    },
-  });
-
-  return card({ variant: 'card--tight' },
-    h('div', { class: 'row-wrap' },
-      h('div', { class: 'grow', style: { minWidth: '160px' } },
-        h('div', { class: 'row-wrap' },
-          h('span', { class: 'strong truncate', title: item.name }, item.name),
-          item.coldChain ? badge('Cold chain', 'sky') : null),
-        h('div', { class: 'small dim truncate' },
-          `${item.code} · per ${item.unit} · target ${fmtInt(target)}`
-          + (inbound ? ` · ${fmtInt(inbound)} on the way` : ''))),
-
-      h('div', { class: 'small dim right nowrap' },
-        row.requestable > 0
-          ? `may request ${fmtInt(row.requestable)} ${item.unit}${row.requestable === 1 ? '' : 's'}`
-          : 'at target'),
-
-      h('div', { class: 'field', style: { width: '90px' } },
-        h('span', { class: 'field__label' }, 'Counted'),
-        input)));
+function stockTable(rows) {
+  return h('div', { class: 'table-wrap' },
+    h('table', { class: 'table' },
+      h('thead', {}, h('tr', {},
+        h('th', { class: 'col-head' }, 'Item'),
+        h('th', {}, 'In stock'),
+        h('th', {}, 'Target'),
+        h('th', {}, 'On the way'),
+        h('th', {}, 'May request'))),
+      h('tbody', {}, ...rows.map((row) => {
+        const { item, held, target, inbound, requestable } = row;
+        return h('tr', {},
+          h('td', { class: 'col-head' },
+            h('div', { class: 'row-wrap' },
+              h('span', {}, item.name),
+              item.coldChain ? badge('Cold chain', 'sky') : null),
+            h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),
+          h('td', { class: 'tnum strong' }, fmtInt(held)),
+          h('td', { class: 'tnum dim' }, fmtInt(target)),
+          h('td', { class: `tnum${inbound ? '' : ' is-zero'}` }, inbound ? fmtInt(inbound) : '—'),
+          h('td', { class: `tnum${requestable ? '' : ' is-zero'}` },
+            requestable ? fmtInt(requestable) : 'at target'));
+      }))));
 }
-
-export { tile };

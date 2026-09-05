@@ -2,3 +2,8 @@
 
 # Local editor/tooling config (the README documents how to serve the site)
 .claude/
+
+# Unused 3D icon pack (~559MB). The .fig and .psd sources are each over
+# GitHub's 100MB hard file limit, so committing this folder breaks the push.
+# To use one of the PNGs, resize it and add that single file with `git add -f`.
+assets/icons/

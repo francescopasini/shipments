@@ -91,8 +91,8 @@ svg { display: block; }
   font: 800 11.5px/1 var(--font);
   padding: 5px 8px;
   border-radius: var(--r-pill);
-  background: var(--clay-rose);
-  color: var(--clay-rose-ink);
+  background: var(--clay-sky);
+  color: var(--clay-sky-ink);
 }
 
 .nav__spacer { flex: 1; }

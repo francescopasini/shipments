@@ -3,7 +3,7 @@
 A clickable prototype of an app that coordinates clinical-trial supply shipments from a central
 deposit to trial sites. Two sides share one codebase:
 
-- **Front office (FO)** — site coordinators request shipments and keep their site stock accurate.
+- **Front office (FO)** — site coordinators request shipments and track their site stock.
 - **Back office (BO)** — shipping coordinators fulfil those requests; some BO users also approve PFIs.
 
 Static site, no build step, no dependencies. The database is `localStorage`, seeded with mock data.
@@ -48,8 +48,8 @@ READY_FOR_PREPARATION → IN_PREPARATION → SHIPPED → DELIVERED
 ```
 
 Stock leaves the central deposit when a shipment is **requested** and lands at the site when it is
-**delivered**. Vendor emails are not simulated: the coordinator advances the status manually, as in
-the source workflow.
+**delivered** — automatically, with no manual stock entry at the site. Vendor emails are not
+simulated: the coordinator advances the status manually, as in the source workflow.
 
 A site's allocation is the ceiling on what it may hold, so the most it can request of an item is
 `target − held − already in transit`. The request dialog enforces that cap.

@@ -1,7 +1,7 @@
 // Stock ledger. Every balance change goes through `move()` so the ledger stays
 // the single source of truth and the deposit chart keeps up.
 
-import { CENTRAL, TRANSIT, siteLocation, isSiteLocation, siteIdFromLocation, LEDGER_REASON } from './constants.js';
+import { CENTRAL, TRANSIT, siteLocation, isSiteLocation, siteIdFromLocation } from './constants.js';
 
 export { CENTRAL, TRANSIT, siteLocation, isSiteLocation, siteIdFromLocation };
 
@@ -65,24 +65,8 @@ export function moveShipment(db, shipment, from, to, reason) {
   }
 }
 
-/**
- * Set a site's counted stock for one item to `newQty`, recording the difference
- * as an adjustment. Used by the FO stock screen.
- */
-export function setSiteCount(db, siteId, itemId, newQty) {
-  const loc = siteLocation(siteId);
-  const current = balance(db, loc, itemId);
-  const target = Math.max(0, Math.round(newQty));
-  const delta = target - current;
-  if (!delta) return null;
-  return move(db, {
-    itemId,
-    from: delta < 0 ? loc : null,
-    to: delta > 0 ? loc : null,
-    qty: Math.abs(delta),
-    reason: LEDGER_REASON.ADJUSTMENT,
-  });
-}
+/* Site stock is never set by hand: it moves in when a shipment is marked
+   delivered (see markDelivered in workflow.js) and out via seeded consumption. */
 
 /** Ordered list of locations for the BO stock matrix — site columns alphabetical by code. */
 export function matrixLocations(db) {
