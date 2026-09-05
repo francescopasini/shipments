@@ -49,18 +49,20 @@
   width: 46px;
   height: 46px;
   flex: none;
-  border-radius: var(--r-md);
+  border-radius: var(--tile-radius);
   display: grid;
   place-items: center;
-  box-shadow: var(--clay-sm);
-  background: var(--clay-sky-soft);
+  box-shadow: var(--clay-tile);
+  background-color: var(--clay-sky-soft);
+  background-image: var(--tile-shine);
+  background-repeat: no-repeat;
 }
-.tile--sm { width: 34px; height: 34px; border-radius: var(--r-sm); }
-.tile--sky { background: var(--clay-sky-soft); color: var(--clay-sky-ink); }
-.tile--butter { background: var(--clay-butter-soft); color: var(--clay-butter-ink); }
-.tile--lilac { background: var(--clay-lilac-soft); color: var(--clay-lilac-ink); }
-.tile--sage { background: var(--clay-sage-soft); color: var(--clay-sage-ink); }
-.tile--rose { background: var(--clay-rose-soft); color: var(--clay-rose-ink); }
+.tile--sm { width: 34px; height: 34px; border-radius: calc(var(--tile-radius) * .7); }
+.tile--sky { background-color: var(--clay-sky-soft); color: var(--clay-sky-ink); }
+.tile--butter { background-color: var(--clay-butter-soft); color: var(--clay-butter-ink); }
+.tile--lilac { background-color: var(--clay-lilac-soft); color: var(--clay-lilac-ink); }
+.tile--sage { background-color: var(--clay-sage-soft); color: var(--clay-sage-ink); }
+.tile--rose { background-color: var(--clay-rose-soft); color: var(--clay-rose-ink); }
 
 /* ---------- buttons ---------- */
 

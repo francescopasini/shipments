@@ -1,4 +1,7 @@
-/* Theme = background only. Components are shared between FO and BO. */
+/* Theme = background + shadow depth. Components are shared between FO and BO;
+   BO additionally overrides the shadow/shine variables for a warmer, more
+   sculpted "claymorphism" depth on cards and icon tiles, matching the design
+   reference. FO keeps the flatter default look defined in tokens.css. */
 
 /* FO — superlight gray */
 .theme-fo {
@@ -8,12 +11,33 @@
   --shadow-dark: rgba(58, 52, 48, .13);
 }
 
-/* BO — light brown */
+/* BO — warm cream, clay-sculpted depth */
 .theme-bo {
-  --bg: #eae0d2;
-  --card: #fffdfa;
-  --card-sunken: #f0e7da;
-  --shadow-dark: rgba(88, 68, 44, .18);
+  --bg: #f2e9d8;
+  --card: #fffdf8;
+  --card-sunken: #efe3cd;
+  --shadow-dark: rgba(94, 66, 30, .22);
+
+  /* cards: soft ambient float, warm-toned, no inner carve */
+  --clay:
+    12px 16px 32px rgba(94, 66, 30, .20),
+    -8px -8px 18px rgba(255, 255, 255, .8),
+    inset 1px 1px 2px rgba(255, 255, 255, .5);
+
+  /* buttons / chips / avatars / active nav: a touch deeper, still clean at small sizes */
+  --clay-sm:
+    6px 8px 16px rgba(94, 66, 30, .20),
+    -4px -4px 10px rgba(255, 255, 255, .75),
+    inset 1px 1px 2px rgba(255, 255, 255, .55);
+
+  /* icon tiles: full claymorphism — lifted rounded blob with a carved highlight/shade */
+  --clay-tile:
+    8px 11px 20px rgba(94, 66, 30, .42),
+    -6px -6px 14px rgba(255, 255, 255, .9),
+    inset 3px 3px 4px rgba(255, 255, 255, .8),
+    inset -4px -5px 8px rgba(94, 60, 24, .3);
+  --tile-shine: radial-gradient(125% 125% at 26% 20%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 55%);
+  --tile-radius: 20px;
 }
 
 .theme-fo, .theme-bo { background: var(--bg); }

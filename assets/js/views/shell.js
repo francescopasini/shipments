@@ -37,6 +37,11 @@ export function renderShell(root) {
   const sections = side === 'fo' ? FO_SECTIONS : BO_SECTIONS;
   const path = currentPath();
 
+  // Dialogs and toasts mount on <body>, outside .shell — put the theme class there
+  // too so its scoped color/shadow variables reach them.
+  document.body.classList.remove('theme-fo', 'theme-bo');
+  document.body.classList.add(`theme-${side}`);
+
   const main = h('main', { class: 'main' });
   const shell = h('div', { class: `shell theme-${side}` },
     h('nav', { class: 'nav' },

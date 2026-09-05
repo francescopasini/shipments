@@ -58,6 +58,11 @@
     2px 2px 7px rgba(58, 52, 48, .09),
     -2px -2px 6px var(--shadow-light);
 
+  /* icon-tile depth — overridden per theme; default keeps the flat FO look */
+  --clay-tile: var(--clay-sm);
+  --tile-shine: none;
+  --tile-radius: var(--r-md);
+
   /* ---- type ---- */
   --font: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --t-display: 700 30px/1.15 var(--font);
