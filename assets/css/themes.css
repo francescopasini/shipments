@@ -13,30 +13,28 @@
 
 /* BO — warm cream, clay-sculpted depth */
 .theme-bo {
-  --bg: #f2e9d8;
-  --card: #fffdf8;
-  --card-sunken: #efe3cd;
-  --shadow-dark: rgba(94, 66, 30, .22);
+  --bg: #ece0c8;
+  --card: #fbf4e4;
+  --card-sunken: #efe2c4;
+  --shadow-dark: rgba(94, 66, 30, .24);
 
-  /* cards: soft ambient float, warm-toned, no inner carve */
+  /* cards: a single soft warm drop shadow — no outer white counter-glow */
   --clay:
-    12px 16px 32px rgba(94, 66, 30, .20),
-    -8px -8px 18px rgba(255, 255, 255, .8),
-    inset 1px 1px 2px rgba(255, 255, 255, .5);
+    0 22px 40px -14px rgba(94, 66, 30, .34),
+    0 6px 14px rgba(94, 66, 30, .16);
 
-  /* buttons / chips / avatars / active nav: a touch deeper, still clean at small sizes */
+  /* buttons / chips / avatars / active nav: the same shadow, scaled down */
   --clay-sm:
-    6px 8px 16px rgba(94, 66, 30, .20),
-    -4px -4px 10px rgba(255, 255, 255, .75),
-    inset 1px 1px 2px rgba(255, 255, 255, .55);
+    0 10px 18px -8px rgba(94, 66, 30, .3),
+    0 3px 7px rgba(94, 66, 30, .14);
 
-  /* icon tiles: full claymorphism — lifted rounded blob with a carved highlight/shade */
+  /* icon tiles: a drop shadow plus an inset highlight/shade — contained within
+     the tile, so it reads as a carved rounded blob rather than an external glow */
   --clay-tile:
-    8px 11px 20px rgba(94, 66, 30, .42),
-    -6px -6px 14px rgba(255, 255, 255, .9),
-    inset 3px 3px 4px rgba(255, 255, 255, .8),
-    inset -4px -5px 8px rgba(94, 60, 24, .3);
-  --tile-shine: radial-gradient(125% 125% at 26% 20%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 55%);
+    0 9px 16px -3px rgba(94, 66, 30, .4),
+    inset 2px 2px 3px rgba(255, 255, 255, .75),
+    inset -3px -4px 6px rgba(94, 60, 24, .28);
+  --tile-shine: radial-gradient(125% 125% at 26% 20%, rgba(255, 255, 255, .8), rgba(255, 255, 255, 0) 55%);
   --tile-radius: 20px;
 }
 
