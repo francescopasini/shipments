@@ -72,10 +72,17 @@ const navIcon = (name) => {
   return img || icon(name, 22);
 };
 
+// Its own 512px export rather than the shared 144px icon, so it stays sharp
+// at this size and on a retina display.
 const brandMark = () => {
-  const img = iconImg('truck', 92);
-  if (img) img.className = 'nav__brand-mark';
-  return img || icon('truck', 40);
+  const img = document.createElement('img');
+  img.src = 'assets/img/brand-truck.png';
+  img.width = 132;
+  img.height = 132;
+  img.alt = '';
+  img.decoding = 'async';
+  img.className = 'nav__brand-mark';
+  return img;
 };
 
 function navLink(section, path, db, user, side) {
