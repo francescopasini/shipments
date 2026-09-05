@@ -45,7 +45,7 @@ export function renderShell(root) {
   const main = h('main', { class: 'main' });
   const shell = h('div', { class: `shell theme-${side}` },
     h('nav', { class: 'nav' },
-      brand(side),
+      brand(),
       side === 'fo' ? siteSwitcher(db, user) : null,
       h('div', { class: 'nav__group nav__group--sections' },
         h('span', { class: 'nav__label' }, side === 'fo' ? 'Site' : 'Deposit'),
@@ -58,12 +58,12 @@ export function renderShell(root) {
   return main;
 }
 
-function brand(side) {
+/** The logo lockup: mark on the left, lowercase wordmark on the right.
+    Identical on both sides — the theme colour and the nav already say which. */
+function brand() {
   return h('div', { class: 'nav__brand' },
     brandMark(),
-    h('div', {},
-      h('div', { class: 'nav__brand-name' }, 'Shipments'),
-      h('div', { class: 'nav__brand-sub' }, side === 'fo' ? 'Site front office' : 'Deposit back office')));
+    h('span', { class: 'nav__brand-name' }, 'shipments'));
 }
 
 const navIcon = (name) => {
@@ -77,8 +77,8 @@ const navIcon = (name) => {
 const brandMark = () => {
   const img = document.createElement('img');
   img.src = 'assets/img/brand-truck.png';
-  img.width = 132;
-  img.height = 132;
+  img.width = 96;
+  img.height = 96;
   img.alt = '';
   img.decoding = 'async';
   img.className = 'nav__brand-mark';
