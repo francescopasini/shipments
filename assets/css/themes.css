@@ -1,41 +1,25 @@
-/* Theme = background + shadow depth. Components are shared between FO and BO;
-   BO additionally overrides the shadow/shine variables for a warmer, more
-   sculpted "claymorphism" depth on cards and icon tiles, matching the design
-   reference. FO keeps the flatter default look defined in tokens.css. */
+/* FO and BO share one visual style — geometry, elevation and surface treatment
+   all live in tokens.css. The only thing a theme sets is its palette: the page
+   background and the card colour. Every other surface (raised controls, sunken
+   tints, gradients) is derived from --card in tokens.css. */
 
-/* FO — superlight gray */
+/* FO — cool light grey */
 .theme-fo {
-  --bg: #f5f6f7;
-  --card: #ffffff;
-  --card-sunken: #eef0f2;
-  --shadow-dark: rgba(58, 52, 48, .13);
+  --bg:   #eef0f3;
+  --card: #fafbfc;
 }
 
-/* BO — warm cream, clay-sculpted depth */
+/* BO — warm cream, per the design reference */
 .theme-bo {
-  --bg: #ece0c8;
-  --card: #fbf4e4;
-  --card-sunken: #efe2c4;
-  --shadow-dark: rgba(94, 66, 30, .24);
-
-  /* cards: a single soft warm drop shadow — no outer white counter-glow */
-  --clay:
-    0 22px 40px -14px rgba(94, 66, 30, .34),
-    0 6px 14px rgba(94, 66, 30, .16);
-
-  /* buttons / chips / avatars / active nav: the same shadow, scaled down */
-  --clay-sm:
-    0 10px 18px -8px rgba(94, 66, 30, .3),
-    0 3px 7px rgba(94, 66, 30, .14);
-
-  /* icon tiles: a drop shadow plus an inset highlight/shade — contained within
-     the tile, so it reads as a carved rounded blob rather than an external glow */
-  --clay-tile:
-    0 9px 16px -3px rgba(94, 66, 30, .4),
-    inset 2px 2px 3px rgba(255, 255, 255, .75),
-    inset -3px -4px 6px rgba(94, 60, 24, .28);
-  --tile-shine: radial-gradient(125% 125% at 26% 20%, rgba(255, 255, 255, .8), rgba(255, 255, 255, 0) 55%);
-  --tile-radius: 20px;
+  --bg:   #e8dfcd;
+  --card: #f6f2e8;
 }
 
-.theme-fo, .theme-bo { background: var(--bg); }
+/* Everything below is shared — it just has to be declared here, on the same
+   element as --card, because a custom property substitutes var() at the point
+   it is declared. Deriving these at :root would freeze them to :root's --card. */
+.theme-fo, .theme-bo {
+  --control-bg:  color-mix(in srgb, var(--card) 55%, #fff);
+  --card-sunken: color-mix(in srgb, var(--card) 92%, var(--ink));
+  background: var(--bg);
+}
