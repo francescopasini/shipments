@@ -1,7 +1,7 @@
 // Shared clay components: cards, badges, buttons, fields, dialogs, toasts.
 
 import { h, append, initials } from './el.js';
-import { icon } from './icons.js';
+import { icon, iconImg } from './icons.js';
 import { SHIPMENT_STATUS_META, PFI_STATUS_META } from '../domain/constants.js';
 
 /* ---------- surfaces ---------- */
@@ -19,10 +19,21 @@ export function actionCard(props = {}, ...children) {
   return h('button', { ...rest, type: 'button', class: cls, onClick }, ...children);
 }
 
-/** There is one version of every icon — no colour variants. */
+/**
+ * A display icon. The 3D artwork *is* the tile — it fills the space the cream
+ * box used to occupy, with no container behind it. One version of every icon,
+ * no colour variants.
+ */
 export function tile(name, size = 'md') {
-  return h('span', { class: `tile${size === 'sm' ? ' tile--sm' : ''}` },
-    icon(name, size === 'sm' ? 17 : 22));
+  const px = size === 'sm' ? 34 : 46;
+  const img = iconImg(name, px);
+  if (img) {
+    img.className = `tile${size === 'sm' ? ' tile--sm' : ''}`;
+    return img;
+  }
+  // No artwork for this name — fall back to the inline glyph at the same size.
+  return h('span', { class: `tile tile--glyph${size === 'sm' ? ' tile--sm' : ''}` },
+    icon(name, px - 12));
 }
 
 export function avatar(name, size = '') {

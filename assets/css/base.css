@@ -179,3 +179,6 @@ svg { display: block; }
   .col-3, .col-4, .col-5, .col-6, .col-7, .col-8, .col-9 { grid-column: span 12; }
   .page-head__title { font: var(--t-title); }
 }
+
+/* 3D nav icons — keep their footprint in the flex row */
+.nav__icon { width: 24px; height: 24px; flex: none; object-fit: contain; }

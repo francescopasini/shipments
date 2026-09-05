@@ -36,6 +36,53 @@ const P = {
 };
 
 /**
+ * Display icons: the 3D pack in assets/img, keyed by the same semantic names as
+ * the SVG glyphs below. These replace the tile entirely — the artwork carries its
+ * own depth, so it needs no cream box behind it.
+ *
+ * The small functional glyphs (arrow, close, plus, check, filter, swap, refresh,
+ * edit, lock) have no counterpart in the pack and would be illegible at 15–17px
+ * anyway, so they stay as the inline SVGs below.
+ */
+const IMG = {
+  home: 'global-shipping-network',
+  box: 'storage-container-box',
+  truck: 'delivery-truck-cargo',
+  warehouse: 'warehouse-storage-shelves',
+  grid: 'fulfillment-center-warehouse',
+  bell: 'customer-support-center',
+  building: 'distribution-center-building',
+  user: 'package-handling-worker',
+  users: 'supply-chain-partnership',
+  clipboard: 'delivery-checklist-package',
+  flask: 'factory-production-plant',
+  seal: 'package-inspection-checklist',
+  chart: 'inventory-management-system',
+  calendar: 'conveyor-belt-packages',
+  clock: 'shipment-tracking-search',
+  search: 'shipment-tracking-search',
+  check: 'package-inspection-checklist',
+  pin: 'direction-signpost-route',
+  lock: 'warehouse-reception-desk',
+};
+
+/** An <img> for `name` at `size` px, or null when the pack has no such icon. */
+export function iconImg(name, size = 46) {
+  const file = IMG[name];
+  if (!file) return null;
+  const img = document.createElement('img');
+  img.src = `assets/img/${file}.png`;
+  img.width = size;
+  img.height = size;
+  img.alt = '';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  return img;
+}
+
+export const hasImg = (name) => Object.prototype.hasOwnProperty.call(IMG, name);
+
+/**
  * Returns an <svg> element for `name`.
  * Unknown names fall back to a neutral box so a typo never breaks a screen.
  */

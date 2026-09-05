@@ -1,9 +1,9 @@
 // App frame: themed sidebar, section nav, persona switcher, FO site switcher.
 
 import { h, append, initials } from '../ui/el.js';
-import { icon } from '../ui/icons.js';
+import { icon, iconImg } from '../ui/icons.js';
 import {
-  card, btn, iconBtn, badge, avatar, dialog, confirmDialog, toast, empty,
+  card, tile, btn, iconBtn, badge, avatar, dialog, confirmDialog, toast, empty,
 } from '../ui/components.js';
 import { navigate, currentPath } from '../router.js';
 import * as store from '../store.js';
@@ -60,11 +60,17 @@ export function renderShell(root) {
 
 function brand(side) {
   return h('div', { class: 'nav__brand' },
-    h('span', { class: 'tile' }, icon('truck', 22)),
+    tile('truck'),
     h('div', {},
       h('div', { class: 'nav__brand-name' }, 'Shipments'),
       h('div', { class: 'nav__brand-sub' }, side === 'fo' ? 'Site front office' : 'Deposit back office')));
 }
+
+const navIcon = (name) => {
+  const img = iconImg(name, 24);
+  if (img) img.className = 'nav__icon';
+  return img || icon(name, 19);
+};
 
 function navLink(section, path, db, user, side) {
   const active = path === section.path || path.startsWith(`${section.path}/`);
@@ -77,7 +83,7 @@ function navLink(section, path, db, user, side) {
     class: `nav__link${active ? ' is-active' : ''}`,
     onClick: () => navigate(section.path),
   },
-  icon(section.icon, 19),
+  navIcon(section.icon),
   h('span', { class: 'grow truncate' }, section.label),
   count ? h('span', { class: 'nav__link-count' }, count) : null);
 }
@@ -97,7 +103,7 @@ function siteSwitcher(db, user) {
     title: 'Switch site',
   },
   h('div', { class: 'row' },
-    h('span', { class: 'tile tile--sm' }, icon('building', 17)),
+    tile('building', 'sm'),
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'strong truncate' }, site.code),
       h('div', { class: 'small dim truncate' }, site.address.city)),

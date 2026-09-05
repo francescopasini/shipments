@@ -90,8 +90,11 @@ against a CVD check, rose and sage are indistinguishable under deuteranopia. So 
 single-series, and the status chart direct-labels every bar — the fill only echoes the badge the
 user already saw in the list.
 
-Icons are hand-built inline SVG (`ui/icons.js`) rather than a CDN library, so the site stays entirely
-self-contained.
+Display icons are the 3D pack in `assets/img`, downscaled to 144px and mapped to semantic names in
+`ui/icons.js`. The artwork carries its own depth, so it replaces the tile entirely rather than
+sitting inside one. The small functional glyphs (arrow, close, plus, check, filter, swap, refresh,
+edit, lock) have no counterpart in that pack and would be illegible at 15–17px, so they remain
+hand-built inline SVG in the same file. Everything is local — no CDN.
 
 ## Deploying to GitHub Pages
 
