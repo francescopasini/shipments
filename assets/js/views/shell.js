@@ -61,9 +61,9 @@ const navIcon = (name) => {
 // at this size and on a retina display.
 const brandMark = () => {
   const img = document.createElement('img');
-  img.src = 'assets/img/brand-truck.png';
-  img.width = 141;
-  img.height = 141;
+  img.src = 'assets/img/brand-ship.png';
+  img.width = 110;
+  img.height = 110;
   img.alt = '';
   img.decoding = 'async';
   img.className = 'nav__brand-mark';
