@@ -1,27 +1,29 @@
 /* Design tokens — clay/bento system.
    Palette is capped at five pastel colors per the design guidelines.
-   Neutrals (backgrounds, card, ink) sit outside that count. */
+   Neutrals (backgrounds, card, ink) sit outside that count.
+   Each colour comes in three: the fill, a deeper `-ink` for text on that fill
+   (every pair clears 4.5:1), and a `-soft` tint for large areas. */
 
 :root {
   /* ---- the five ---- */
   --clay-sky:    #a9c6dc;
-  --clay-butter: #f1d9a7;
+  --clay-butter: #efc49a;
   --clay-lilac:  #c6b8da;
-  --clay-sage:   #b9cba5;
+  --clay-sage:   #c7d69f;
   --clay-rose:   #e9b8b4;
 
-  /* deeper variants for text on pastel fills — same hues, not new colors */
+  /* deeper variants for text on those fills — same hues, not new colors */
   --clay-sky-ink:    #2f5771;
-  --clay-butter-ink: #7a5c17;
+  --clay-butter-ink: #7f4710;
   --clay-lilac-ink:  #55427a;
-  --clay-sage-ink:   #41603a;
+  --clay-sage-ink:   #4b5d19;
   --clay-rose-ink:   #8a3f3a;
 
   /* soft tints for large fills */
   --clay-sky-soft:    #e4eef5;
-  --clay-butter-soft: #faf1dd;
+  --clay-butter-soft: #f8ede2;
   --clay-lilac-soft:  #ece6f3;
-  --clay-sage-soft:   #e7eee0;
+  --clay-sage-soft:   #f0f4e6;
   --clay-rose-soft:   #f8e6e5;
 
   /* ---- neutrals ----
