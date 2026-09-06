@@ -9,7 +9,8 @@ import {
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import {
-  getTrial, sitesForTrial, cadencesForTrial, siteCoverage, countryName, allTrials,
+  getTrial, getSite, sitesForTrial, siteTrialsForTrial, cadencesForTrial,
+  siteCoverage, countryName, allTrials,
 } from '../../domain/selectors.js';
 
 /* ---------- list ---------- */
@@ -58,6 +59,7 @@ export function renderDetail(main, params) {
     return;
   }
 
+  const siteTrials = siteTrialsForTrial(db, trial.id);
   const sites = sitesForTrial(db, trial.id);
   const cadences = cadencesForTrial(db, trial.id);
   const shipments = db.shipments.filter((s) => s.trialId === trial.id);
@@ -118,19 +120,25 @@ export function renderDetail(main, params) {
           h('div', {},
             h('div', { class: 'card__title' }, 'Sites'),
             h('div', { class: 'small dim' }, 'Stock held against allocation'))),
-        sites.length
-          ? h('div', { class: 'stack-sm' }, ...sites.map((site) => h('button', {
-            type: 'button',
-            class: 'card card--tight card--action',
-            onClick: () => navigate(`/bo/sites/${site.id}`),
-          },
-          h('div', { class: 'row-between' },
-            h('div', { class: 'row', style: { minWidth: 0 } },
-              h('div', { style: { minWidth: 0 } },
-                h('div', { class: 'small strong truncate' }, `${site.code} · ${site.address.city}`),
-                h('div', { class: 'small dim truncate' }, countryName(site.address.country)))),
-            site.active ? null : badge('Inactive', 'rose')),
-          meter(siteCoverage(db, site)))))
+        siteTrials.length
+          ? h('div', { class: 'stack-sm' }, ...siteTrials.map((st) => {
+            const site = getSite(db, st.siteId);
+            if (!site) return null;
+            // The meter is this pairing's coverage, not the site's overall
+            // position — the site may run other studies that are fully stocked.
+            return h('button', {
+              type: 'button',
+              class: 'card card--tight card--action',
+              onClick: () => navigate(`/bo/sites/${site.id}`),
+            },
+            h('div', { class: 'row-between' },
+              h('div', { class: 'row', style: { minWidth: 0 } },
+                h('div', { style: { minWidth: 0 } },
+                  h('div', { class: 'small strong truncate' }, `${site.code} · ${site.address.city}`),
+                  h('div', { class: 'small dim truncate' }, countryName(site.address.country)))),
+              site.active ? null : badge('Inactive', 'rose')),
+            meter(siteCoverage(db, st)));
+          }))
           : empty('No sites are running this trial.', 'building'))),
     ),
   ]);

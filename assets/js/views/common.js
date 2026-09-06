@@ -3,7 +3,9 @@
 import { h, append, fmtInt, fmtAgo, fmtDate, fmtMoney } from '../ui/el.js';
 import { icon } from '../ui/icons.js';
 import { card, actionCard, tile, badge, shipmentBadge, pfiBadge, avatar, timeline } from '../ui/components.js';
-import { getItem, getSite, getTrial, getCadence, userName, unitsIn, pfiValue } from '../domain/selectors.js';
+import {
+  getItem, getSite, getTrial, getCadence, userName, unitsIn, pfiValue, trialsForSite,
+} from '../domain/selectors.js';
 
 /**
  * One shipment as a full-width clickable row. No icons here: a long list does
@@ -53,8 +55,12 @@ export function linesTable(db, lines) {
       }))));
 }
 
-/** The PFI panel — shown read-only on the FO side, actionable on the BO side. */
-export function pfiPanel(db, pfi, { actions = null, showLines = true } = {}) {
+/**
+ * The PFI panel — read-only on the FO side, actionable on the BO side.
+ * `edit` is a button the shipment's coordinator can use while the invoice is
+ * still a draft; `note` is a line of context under the header.
+ */
+export function pfiPanel(db, pfi, { actions = null, showLines = true, edit = null, note = null } = {}) {
   if (!pfi) return null;
   const total = pfiValue(pfi);
 
@@ -65,7 +71,8 @@ export function pfiPanel(db, pfi, { actions = null, showLines = true } = {}) {
         h('div', {},
           h('div', { class: 'card__title' }, 'Proforma invoice'),
           h('div', { class: 'small dim' }, pfi.number))),
-      pfiBadge(pfi.status)),
+      h('div', { class: 'row' }, edit, pfiBadge(pfi.status))),
+    note ? h('p', { class: 'small muted' }, note) : null,
     h('div', { class: 'kv' },
       h('span', { class: 'kv__k' }, 'Prepared by'),
       h('span', { class: 'kv__v' }, userName(db, pfi.preparedById)),
@@ -148,6 +155,46 @@ export function shipmentHeader(db, shipment, backAction, ...actions) {
     actions.filter(Boolean).length
       ? h('div', { class: 'row-wrap' }, ...actions.filter(Boolean))
       : null);
+}
+
+/**
+ * The trial selector for the front office. A site runs any number of trials and
+ * almost everything the FO sees — stock, targets, study week, cadences — belongs
+ * to one of them, so each view picks a trial and scopes itself to that pair.
+ * Sites running a single trial get nothing: there is no choice to offer.
+ *
+ * Returns `null` when there is nothing to show, so callers can drop it straight
+ * into a child list.
+ */
+export function trialStrip(db, site, activeTrialId, onPick) {
+  const trials = trialsForSite(db, site.id);
+  if (trials.length < 2) return null;
+  return h('div', { class: 'stack-sm' },
+    h('span', { class: 'card__label' }, 'Trial'),
+    chipStrip(trials.map((t) => ({ value: t.id, label: t.code })), activeTrialId, onPick));
+}
+
+/**
+ * Which trial the front office is looking at. One choice shared by every FO
+ * view, so picking a trial on the dashboard still holds when you open stock or
+ * shipments — the alternative, a selection per view, has the sections silently
+ * disagreeing about which study you are working on.
+ *
+ * Session-only: it is a lens on the data, not part of it, and it falls back to
+ * the site's first trial whenever the remembered one does not apply — which is
+ * what happens as soon as the user switches site.
+ */
+let foTrialId = null;
+
+export function activeTrialId(db, site) {
+  const trials = trialsForSite(db, site.id);
+  if (trials.some((t) => t.id === foTrialId)) return foTrialId;
+  foTrialId = trials[0] ? trials[0].id : null;
+  return foTrialId;
+}
+
+export function setActiveTrialId(trialId) {
+  foTrialId = trialId;
 }
 
 /** Filter chip strip. options: [{ value, label, count }] */

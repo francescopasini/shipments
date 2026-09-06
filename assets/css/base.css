@@ -42,7 +42,7 @@ svg { display: block; }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 12px;
+  padding: 32px 12px 16px;
   overflow-y: auto;
 }
 
@@ -51,6 +51,12 @@ svg { display: block; }
   align-items: center;
   gap: 0;
   padding: 0;
+  /* The lockup is given room on both sides, in the proportions of the reference
+     sidebar: a gap above it around half the mark's own height, and a gap below
+     it roughly 2.5× that. The larger gap underneath is what makes the logo read
+     as a masthead rather than as the first item of the navigation. Combined
+     with the 10px flex gap this lands the first nav row ~76px below the mark. */
+  margin-bottom: 40px;
 }
 .nav__brand-text { display: flex; flex-direction: column; gap: 1px; }
 .nav__brand-name {
@@ -117,11 +123,19 @@ svg { display: block; }
 
 .page-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
   flex-wrap: wrap;
   padding: 2px 2px 4px;
+}
+/* The section icon leads the title block; `align-items: center` keeps the
+   artwork optically centred against the two lines of text next to it. */
+.page-head__lead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 .page-head__title { font: var(--t-display); letter-spacing: -.5px; }
 .page-head__sub { font: var(--t-small); color: var(--ink-2); margin-top: 3px; }
@@ -177,6 +191,9 @@ svg { display: block; }
     flex-direction: column;
     padding: 16px 14px 4px;
   }
+  /* The masthead gap is vertical breathing room for a tall sidebar; on the
+     stacked mobile nav it would just push the sections off the first screen. */
+  .nav__brand { margin-bottom: 4px; }
   .nav__group--sections {
     flex-direction: row;
     flex-wrap: wrap;
@@ -188,6 +205,8 @@ svg { display: block; }
   .main { padding: 16px 16px 56px; }
   .col-3, .col-4, .col-5, .col-6, .col-7, .col-8, .col-9 { grid-column: span 12; }
   .page-head__title { font: var(--t-title); }
+  .page-head__lead { gap: 10px; }
+  .page-head__lead .tile { width: 56px; height: 56px; }
 }
 
 /* 3D nav icons — keep their footprint in the flex row */

@@ -8,26 +8,8 @@ import {
 import { navigate, currentPath } from '../router.js';
 import * as store from '../store.js';
 import { BO_ROLE_META } from '../domain/constants.js';
-import { openTasksFor, unreadCount, sitesForUser, getTrial } from '../domain/selectors.js';
-
-const FO_SECTIONS = [
-  { path: '/fo/dashboard', label: 'Dashboard', icon: 'home' },
-  { path: '/fo/shipments', label: 'Shipments', icon: 'box' },
-  { path: '/fo/stock', label: 'Stock', icon: 'warehouse' },
-  { path: '/fo/notifications', label: 'Notifications', icon: 'bell' },
-  { path: '/fo/site', label: 'Site', icon: 'building' },
-  { path: '/fo/profile', label: 'Profile', icon: 'user' },
-];
-
-const BO_SECTIONS = [
-  { path: '/bo/dashboard', label: 'Dashboard', icon: 'home' },
-  { path: '/bo/tasks', label: 'Tasks', icon: 'clipboard' },
-  { path: '/bo/shipments', label: 'Shipments', icon: 'box' },
-  { path: '/bo/stock', label: 'Stock', icon: 'grid' },
-  { path: '/bo/sites', label: 'Sites', icon: 'building' },
-  { path: '/bo/trials', label: 'Trials', icon: 'flask' },
-  { path: '/bo/profile', label: 'Profile', icon: 'user' },
-];
+import { openTasksFor, unreadCount, sitesForUser, trialSummary } from '../domain/selectors.js';
+import { FO_SECTIONS, BO_SECTIONS, navSections, profilePath } from './sections.js';
 
 /** Renders the frame and returns the element the active view mounts into. */
 export function renderShell(root) {
@@ -49,7 +31,7 @@ export function renderShell(root) {
       side === 'fo' ? siteSwitcher(db, user) : null,
       h('div', { class: 'nav__group nav__group--sections' },
         h('span', { class: 'nav__label' }, side === 'fo' ? 'Site' : 'Deposit'),
-        ...sections.map((s) => navLink(s, path, db, user, side))),
+        ...navSections(sections).map((s) => navLink(s, path, db, user, side))),
       h('div', { class: 'nav__spacer' }),
       personaCard(db, user)),
     main);
@@ -110,7 +92,6 @@ function siteSwitcher(db, user) {
   const site = store.currentSite();
   const options = sitesForUser(db, user);
   if (!site) return null;
-  const trial = getTrial(db, site.trialId);
 
   return h('button', {
     type: 'button',
@@ -123,8 +104,7 @@ function siteSwitcher(db, user) {
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'strong truncate' }, site.code),
       h('div', { class: 'small dim truncate' }, site.address.city)),
-    options.length > 1 ? icon('swap', 16) : null),
-  h('div', { class: 'small dim truncate' }, trial ? trial.code : ''));
+    options.length > 1 ? icon('swap', 16) : null));
 }
 
 function openSiteDialog(db, user) {
@@ -136,7 +116,6 @@ function openSiteDialog(db, user) {
   dialog('Switch site', (close) => h('div', { class: 'stack-sm' },
     h('p', { class: 'muted small' }, 'You have access to the sites below.'),
     ...options.map((site) => {
-      const trial = getTrial(db, site.trialId);
       const isCurrent = site.id === db.currentSiteId;
       return h('button', {
         type: 'button',
@@ -152,7 +131,7 @@ function openSiteDialog(db, user) {
         h('div', { class: 'grow' },
           h('div', { class: 'strong' }, `${site.code} · ${site.name}`),
           h('div', { class: 'small dim' },
-            `${site.address.city}, ${site.address.country} · ${trial ? trial.code : ''}`)),
+            `${site.address.city}, ${site.address.country} · ${trialSummary(db, site.id)}`)),
         isCurrent ? badge('Current', 'sage') : icon('arrowRight', 17)));
     })), { narrow: true });
 }
@@ -222,7 +201,9 @@ function openPersonaDialog(db) {
       isCurrent ? badge('Current', 'sage') : icon('arrowRight', 17)));
   };
 
-  dialog('Switch persona', () => h('div', { class: 'stack' },
+  const me = db.users.find((u) => u.id === db.currentUserId);
+
+  dialog('Switch persona', (close) => h('div', { class: 'stack' },
     h('p', { class: 'muted small' },
       'This prototype has no login — pick anyone to see the app through their eyes.'),
     h('div', { class: 'stack-sm' },
@@ -230,7 +211,24 @@ function openPersonaDialog(db) {
       ...foUsers.map(row)),
     h('div', { class: 'stack-sm' },
       h('span', { class: 'card__label' }, 'Back office · deposit'),
-      ...boUsers.map(row))));
+      ...boUsers.map(row)),
+    // The profile is about who you are rather than where you are in the app, so
+    // it hangs off the persona switcher instead of taking a slot in the nav.
+    h('hr', { class: 'divider' }),
+    h('button', {
+      type: 'button',
+      class: 'card card--tight card--action',
+      onClick: () => {
+        close();
+        navigate(profilePath(me));
+      },
+    },
+    h('div', { class: 'row' },
+      tile('user', 'sm'),
+      h('div', { class: 'grow', style: { minWidth: 0 } },
+        h('div', { class: 'strong truncate' }, me ? `${me.name}’s profile` : 'Your profile'),
+        h('div', { class: 'small dim truncate' }, 'Role, access and password')),
+      icon('arrowRight', 17)))));
 }
 
 /* ---------- fallback ---------- */

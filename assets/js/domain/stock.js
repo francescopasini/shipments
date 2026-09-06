@@ -1,9 +1,9 @@
 // Stock ledger. Every balance change goes through `move()` so the ledger stays
 // the single source of truth and the deposit chart keeps up.
 
-import { CENTRAL, TRANSIT, siteLocation, isSiteLocation, siteIdFromLocation } from './constants.js';
+import { CENTRAL, TRANSIT, siteLocation, isSiteLocation, parseSiteLocation } from './constants.js';
 
-export { CENTRAL, TRANSIT, siteLocation, isSiteLocation, siteIdFromLocation };
+export { CENTRAL, TRANSIT, siteLocation, isSiteLocation, parseSiteLocation };
 
 /** Units of `itemId` currently held at `location`. */
 export function balance(db, location, itemId) {
@@ -66,47 +66,74 @@ export function moveShipment(db, shipment, from, to, reason) {
 }
 
 /* Site stock is never set by hand: it moves in when a shipment is marked
-   delivered (see markDelivered in workflow.js) and out via seeded consumption. */
+   delivered (see markDelivered in workflow.js) and out via seeded consumption.
+   It lands in the bucket for the shipment's own trial, never the site as a whole. */
 
-/** Ordered list of locations for the BO stock matrix — site columns alphabetical by code. */
+/**
+ * Ordered list of locations for the BO stock matrix. One column per site-trial,
+ * since that is the granularity stock is actually held at — sorted by site code,
+ * then trial code.
+ */
 export function matrixLocations(db) {
+  const site = (id) => db.sites.find((s) => s.id === id);
+  const trial = (id) => db.trials.find((t) => t.id === id);
+
+  const pairs = db.siteTrials
+    .map((st) => ({ siteTrial: st, site: site(st.siteId), trial: trial(st.trialId) }))
+    .filter((p) => p.site && p.trial)
+    .sort((a, b) => a.site.code.localeCompare(b.site.code)
+      || a.trial.code.localeCompare(b.trial.code));
+
   return [
     { id: CENTRAL, label: 'Central deposit', kind: 'central' },
     { id: TRANSIT, label: 'In transit', kind: 'transit' },
-    ...[...db.sites].sort((a, b) => a.code.localeCompare(b.code)).map((site) => ({
-      id: siteLocation(site.id),
-      label: `${site.code} · ${site.address.city}`,
+    ...pairs.map((p) => ({
+      id: siteLocation(p.site.id, p.trial.id),
+      label: `${p.site.code} · ${p.trial.code} · ${p.site.address.city}`,
+      short: `${p.site.code} · ${p.trial.code}`,
       kind: 'site',
-      site,
+      site: p.site,
+      trial: p.trial,
+      siteTrial: p.siteTrial,
     })),
   ];
 }
 
-/** How many units of `itemId` are already heading to `siteId`. */
-export function inboundToSite(db, siteId, itemId) {
+/** Everything a site holds, across every trial it runs. */
+export function totalAtSite(db, siteId) {
+  return db.siteTrials
+    .filter((st) => st.siteId === siteId)
+    .reduce((sum, st) => sum + totalAt(db, siteLocation(st.siteId, st.trialId)), 0);
+}
+
+/** How many units of `itemId` are already heading to a site for a given trial. */
+export function inboundToSite(db, siteId, trialId, itemId) {
   return db.shipments
-    .filter((s) => s.siteId === siteId && s.status !== 'DELIVERED')
+    .filter((s) => s.siteId === siteId && s.trialId === trialId && s.status !== 'DELIVERED')
     .flatMap((s) => s.lines)
     .filter((l) => l.itemId === itemId)
     .reduce((sum, l) => sum + l.qty, 0);
 }
 
 /**
- * The most a site may still request of an item: its allocation target, less what
- * it already holds and what is already on its way.
+ * The most a site may still request of an item for one trial: that site-trial's
+ * allocation target, less what it already holds and what is already on its way.
  */
-export function requestableQty(db, site, itemId) {
-  const allocation = site.allocations.find((a) => a.itemId === itemId);
+export function requestableQty(db, siteTrial, itemId) {
+  if (!siteTrial) return 0;
+  const allocation = siteTrial.allocations.find((a) => a.itemId === itemId);
   if (!allocation) return 0;
-  const held = balance(db, siteLocation(site.id), itemId);
-  return Math.max(0, allocation.targetQty - held - inboundToSite(db, site.id, itemId));
+  const held = balance(db, siteLocation(siteTrial.siteId, siteTrial.trialId), itemId);
+  const inbound = inboundToSite(db, siteTrial.siteId, siteTrial.trialId, itemId);
+  return Math.max(0, allocation.targetQty - held - inbound);
 }
 
-/** Coverage of a site against its allocation targets, 0–1. */
-export function siteCoverage(db, site) {
-  if (!site.allocations.length) return 1;
-  const parts = site.allocations.map((a) => {
-    const held = balance(db, siteLocation(site.id), a.itemId);
+/** Coverage of one site-trial against its allocation targets, 0–1. */
+export function siteCoverage(db, siteTrial) {
+  if (!siteTrial || !siteTrial.allocations.length) return 1;
+  const location = siteLocation(siteTrial.siteId, siteTrial.trialId);
+  const parts = siteTrial.allocations.map((a) => {
+    const held = balance(db, location, a.itemId);
     return a.targetQty ? Math.min(1, held / a.targetQty) : 1;
   });
   return parts.reduce((sum, p) => sum + p, 0) / parts.length;

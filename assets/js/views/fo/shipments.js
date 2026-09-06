@@ -10,11 +10,12 @@ import { SHIPMENT_STATUS_ORDER, SHIPMENT_STATUS_META } from '../../domain/consta
 import { requestShipment } from '../../domain/workflow.js';
 import { requestableQty } from '../../domain/stock.js';
 import {
-  shipmentsForSite, cadencesForTrial, getItem, getTrial, siteStudyWeek,
+  shipmentsForSite, cadencesForTrial, getItem, getSiteTrial, trialsForSite, siteStudyWeek,
 } from '../../domain/selectors.js';
-import { shipmentCard, chipStrip } from '../common.js';
+import { shipmentCard, chipStrip, trialStrip, activeTrialId, setActiveTrialId } from '../common.js';
 
-// Filter is view-local so typing/among chips does not need a store write.
+// The status filter is view-local so clicking among chips does not need a store
+// write; the trial is shared with every other FO view.
 let statusFilter = 'ALL';
 
 export function render(main) {
@@ -25,7 +26,9 @@ export function render(main) {
     return;
   }
 
-  const all = shipmentsForSite(db, site.id);
+  const trialId = activeTrialId(db, site);
+
+  const all = shipmentsForSite(db, site.id).filter((s) => s.trialId === trialId);
   const visible = statusFilter === 'ALL' ? all : all.filter((s) => s.status === statusFilter);
 
   const options = [
@@ -39,6 +42,13 @@ export function render(main) {
       .filter((o) => o.count > 0),
   ];
 
+  const strip = trialStrip(db, site, trialId, (id) => {
+    setActiveTrialId(id);
+    // A status that only existed under the previous trial would show an empty list.
+    statusFilter = 'ALL';
+    rerender(main);
+  });
+
   append(main, [
     sectionHead('Shipments', `${site.code} · ${site.address.city}`,
       btn('Request a new shipment', {
@@ -47,6 +57,7 @@ export function render(main) {
       })),
 
     card({ variant: 'card--tight' },
+      strip,
       chipStrip(options, statusFilter, (value) => { statusFilter = value; rerender(main); })),
 
     visible.length
@@ -55,7 +66,7 @@ export function render(main) {
       )))
       : card({}, empty(
         statusFilter === 'ALL'
-          ? 'This site has not requested anything yet.'
+          ? 'This site has not requested anything for this trial yet.'
           : 'No shipments in that status.',
         'box',
         btn('Request a new shipment', {
@@ -74,16 +85,17 @@ function rerender(main) {
 
 /**
  * Mirrors the dialog in the workflow diagram: pick a trial, then set a quantity
- * on one cadence card. Quantities are capped at what the site allocation allows.
+ * on one cadence card. The trial decides everything below it — which cadences
+ * are offered, and the allocation the quantities are capped against, since a
+ * site's stock and targets are held per trial.
  */
 function openRequestDialog() {
   const db = store.getDb();
   const site = store.currentSite();
   const user = store.currentUser();
 
-  // The site belongs to one trial, but the picker is shown for fidelity to the flow.
-  const trialOptions = [getTrial(db, site.trialId)].filter(Boolean);
-  let trialId = site.trialId;
+  const trialOptions = trialsForSite(db, site.id);
+  let trialId = activeTrialId(db, site);
   let pickedCadenceId = null;
   const quantities = new Map(); // cadenceId -> Map(itemId -> qty)
 
@@ -108,27 +120,38 @@ function openRequestDialog() {
 
   function build() {
     body.replaceChildren();
+    const siteTrial = getSiteTrial(db, site.id, trialId);
     const cadences = cadencesForTrial(db, trialId);
-    const week = siteStudyWeek(site);
+    const week = siteStudyWeek(siteTrial);
 
     append(body, [
       field('Trial', select(
         trialOptions.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
-        { value: trialId, onChange: (e) => { trialId = e.target.value; build(); } },
-      ), `This site is in study week ${week}.`),
+        {
+          value: trialId,
+          onChange: (e) => {
+            trialId = e.target.value;
+            // Caps and cadences belong to the trial, so nothing carries over.
+            pickedCadenceId = null;
+            quantities.clear();
+            build();
+          },
+        },
+      ), `This site is in study week ${week} of this trial.`),
 
       h('span', { class: 'card__label' }, 'Cadence'),
       h('p', { class: 'small muted' },
         'Pick a cadence and set how much you need. Quantities are capped at your site '
-        + 'allocation, minus what you already hold and what is already on its way.'),
+        + 'allocation for this trial, minus what you already hold and what is already on its way.'),
 
       cadences.length
-        ? h('div', { class: 'cadence-grid' }, ...cadences.map((cadence) => cadenceCard(cadence, week)))
+        ? h('div', { class: 'cadence-grid' },
+          ...cadences.map((cadence) => cadenceCard(cadence, week, siteTrial)))
         : empty('This trial has no cadences configured.', 'calendar'),
     ]);
   }
 
-  function cadenceCard(cadence, week) {
+  function cadenceCard(cadence, week, siteTrial) {
     const picked = pickedCadenceId === cadence.id;
     const map = qtyMap(cadence.id);
 
@@ -145,7 +168,7 @@ function openRequestDialog() {
 
     for (const line of cadence.lines) {
       const item = getItem(db, line.itemId);
-      const cap = requestableQty(db, site, line.itemId);
+      const cap = requestableQty(db, siteTrial, line.itemId);
       const suggested = Math.min(line.suggestedQty, cap);
       if (!map.has(line.itemId)) map.set(line.itemId, suggested);
 
@@ -202,6 +225,7 @@ function openRequestDialog() {
 
     const created = store.update((d) => requestShipment(d, {
       siteId: site.id,
+      trialId,
       cadenceId: pickedCadenceId,
       lines,
       userId: user.id,
@@ -209,6 +233,8 @@ function openRequestDialog() {
 
     closeFn();
     if (created) {
+      // Land the list on the trial the request was raised against.
+      setActiveTrialId(trialId);
       toast(`${created.code} requested — the shipping coordinator has been notified.`);
       navigate(`/fo/shipments/${created.id}`);
     } else {

@@ -1,11 +1,11 @@
-// FO site profile — address, who handles the site, and its allocations.
+// FO site profile — address, the trials running here, and who handles them.
 
 import { h, append } from '../../ui/el.js';
 import { card, tile, avatar, empty, sectionHead, badge } from '../../ui/components.js';
 import * as store from '../../store.js';
 import {
   getTrial, coordinatorsForSite, userName, siteStudyWeek,
-  cadencesForTrial, countryName,
+  cadencesForTrial, countryName, siteTrialsForSite,
 } from '../../domain/selectors.js';
 
 export function render(main) {
@@ -16,10 +16,8 @@ export function render(main) {
     return;
   }
 
-  const trial = getTrial(db, site.trialId);
   const peers = coordinatorsForSite(db, site.id);
-  const cadences = cadencesForTrial(db, site.trialId);
-  const week = siteStudyWeek(site);
+  const siteTrials = siteTrialsForSite(db, site.id);
 
   append(main, [
     sectionHead(site.name, `${site.code} · ${site.address.city}, ${countryName(site.address.country)}`),
@@ -38,46 +36,60 @@ export function render(main) {
           h('span', { class: 'kv__k' }, 'Country'),
           h('span', { class: 'kv__v' }, countryName(site.address.country)),
           h('span', { class: 'kv__k' }, 'Site code'),
-          h('span', { class: 'kv__v' }, site.code)))),
-
-      h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('flask'),
-          h('div', {},
-            h('div', { class: 'card__title' }, 'Trial'),
-            h('div', { class: 'small dim' }, trial ? trial.sponsor : ''))),
-        h('div', { class: 'kv' },
-          h('span', { class: 'kv__k' }, 'Trial'),
-          h('span', { class: 'kv__v' }, trial ? `${trial.code} — ${trial.name}` : '—'),
-          h('span', { class: 'kv__k' }, 'Phase'),
-          h('span', { class: 'kv__v' }, trial ? trial.phase : '—'),
-          h('span', { class: 'kv__k' }, 'Study week'),
-          h('span', { class: 'kv__v' }, `Week ${week}`),
+          h('span', { class: 'kv__v' }, site.code),
+          // Customs-driven, so it applies to everything leaving the deposit for
+          // this site, whichever study it belongs to.
           h('span', { class: 'kv__k' }, 'PFI approval'),
           h('span', { class: 'kv__v' },
-            site.requiresPfiApproval ? 'Required before preparation' : 'Not required')),
-        h('hr', { class: 'divider' }),
-        h('span', { class: 'card__label' }, `Cadences · ${cadences.length}`),
-        h('div', { class: 'row-wrap' }, ...cadences.map((c) => h('span', { class: 'badge badge--quiet' },
-          h('span', { class: 'badge__dot' }), `${c.name} · wk ${c.week}`))))),
+            site.requiresPfiApproval ? 'Required before preparation' : 'Not required')))),
 
-      h('div', { class: 'col-5' }, card({},
+      h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row' }, tile('users'),
-          h('div', { class: 'card__title' }, 'People')),
-        h('div', { class: 'stack-sm' },
-          h('span', { class: 'card__label' }, 'Shipping coordinator (deposit)'),
-          h('div', { class: 'row' },
-            avatar(userName(db, site.shippingCoordinatorId)),
-            h('div', {},
-              h('div', { class: 'strong' }, userName(db, site.shippingCoordinatorId)),
-              h('div', { class: 'small dim' }, 'Back office'))),
-          h('hr', { class: 'divider' }),
-          h('span', { class: 'card__label' }, `Site coordinators · ${peers.length}`),
-          ...peers.map((p) => h('div', { class: 'row' },
+          h('div', { class: 'card__title' }, 'Site coordinators')),
+        peers.length
+          ? h('div', { class: 'stack-sm' }, ...peers.map((p) => h('div', { class: 'row' },
             avatar(p.name),
             h('div', { class: 'grow', style: { minWidth: 0 } },
               h('div', { class: 'strong truncate' }, p.name),
               h('div', { class: 'small dim truncate' }, p.email)),
-            p.id === db.currentUserId ? badge('You', 'sage') : null))))),
+            p.id === db.currentUserId ? badge('You', 'sage') : null)))
+          : empty('Nobody is assigned to this site.', 'users'))),
+
+      // One card per study running here. Each carries its own study week,
+      // cadences and deposit coordinator.
+      ...siteTrials.map((st) => h('div', { class: 'col-6' }, trialCard(db, st))),
+
+      siteTrials.length
+        ? null
+        : h('div', { class: 'col-12' }, card({},
+          empty('This site is not running any trial yet.', 'flask'))),
     ),
   ]);
+}
+
+function trialCard(db, siteTrial) {
+  const trial = getTrial(db, siteTrial.trialId);
+  const cadences = cadencesForTrial(db, siteTrial.trialId);
+  const week = siteStudyWeek(siteTrial);
+
+  return card({},
+    h('div', { class: 'row' }, tile('flask'),
+      h('div', {},
+        h('div', { class: 'card__title' }, trial ? trial.code : '—'),
+        h('div', { class: 'small dim' }, trial ? trial.sponsor : ''))),
+    h('div', { class: 'kv' },
+      h('span', { class: 'kv__k' }, 'Trial'),
+      h('span', { class: 'kv__v' }, trial ? trial.name : '—'),
+      h('span', { class: 'kv__k' }, 'Phase'),
+      h('span', { class: 'kv__v' }, trial ? trial.phase : '—'),
+      h('span', { class: 'kv__k' }, 'Study week'),
+      h('span', { class: 'kv__v' }, `Week ${week}`),
+      h('span', { class: 'kv__k' }, 'Deposit coordinator'),
+      h('span', { class: 'kv__v' }, userName(db, siteTrial.shippingCoordinatorId))),
+    h('hr', { class: 'divider' }),
+    h('span', { class: 'card__label' }, `Cadences · ${cadences.length}`),
+    cadences.length
+      ? h('div', { class: 'row-wrap' }, ...cadences.map((c) => h('span', { class: 'badge badge--quiet' },
+        h('span', { class: 'badge__dot' }), `${c.name} · wk ${c.week}`)))
+      : h('p', { class: 'small dim' }, 'No cadences configured.'));
 }

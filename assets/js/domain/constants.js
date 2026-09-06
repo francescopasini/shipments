@@ -30,12 +30,19 @@ export const SHIPMENT_STATUS_META = {
   DELIVERED:              { label: 'Delivered',             tone: 'sage' },
 };
 
+/**
+ * Every shipment carries a proforma invoice — it is the customs document that
+ * travels with the goods, so it has to be prepared whether or not a second pair
+ * of eyes signs it off. `requiresPfiApproval` on the site decides only which
+ * ending a draft reaches: ISSUED where the coordinator finalises it alone,
+ * APPROVED where an approver has to countersign.
+ */
 export const PFI_STATUS = {
   DRAFT: 'DRAFT',
   PENDING_APPROVAL: 'PENDING_APPROVAL',
   APPROVED: 'APPROVED',
   CHANGES_REQUESTED: 'CHANGES_REQUESTED',
-  NOT_REQUIRED: 'NOT_REQUIRED',
+  ISSUED: 'ISSUED',
 };
 
 export const PFI_STATUS_META = {
@@ -43,7 +50,7 @@ export const PFI_STATUS_META = {
   PENDING_APPROVAL:  { label: 'Pending approval',  tone: 'butter' },
   APPROVED:          { label: 'Approved',          tone: 'sage' },
   CHANGES_REQUESTED: { label: 'Changes requested', tone: 'rose' },
-  NOT_REQUIRED:      { label: 'Not required',      tone: 'quiet' },
+  ISSUED:            { label: 'Issued',            tone: 'sage' },
 };
 
 export const TASK_TYPE = {
@@ -68,12 +75,19 @@ export const BO_ROLE_META = {
   PFI_APPROVER:         { label: 'PFI approver' },
 };
 
-/** Stock locations. Sites use the `site:<id>` form. */
+/**
+ * Stock locations. A site holds stock per trial, so its bucket is keyed by both:
+ * `site:<siteId>:<trialId>`. Nothing a site holds for one study can be dispensed
+ * for another, and allocation targets are per site-trial too.
+ */
 export const CENTRAL = 'CENTRAL';
 export const TRANSIT = 'TRANSIT';
-export const siteLocation = (siteId) => `site:${siteId}`;
+export const siteLocation = (siteId, trialId) => `site:${siteId}:${trialId}`;
 export const isSiteLocation = (loc) => loc.startsWith('site:');
-export const siteIdFromLocation = (loc) => loc.slice(5);
+export const parseSiteLocation = (loc) => {
+  const [, siteId, trialId] = loc.split(':');
+  return { siteId, trialId };
+};
 
 export const LEDGER_REASON = {
   REQUEST: 'REQUEST',

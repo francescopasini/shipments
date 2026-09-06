@@ -1,4 +1,4 @@
-// FO home — bento analytics for the active site only.
+// FO home — bento analytics for the active site, scoped to one of its trials.
 
 import { h, append, fmtInt } from '../../ui/el.js';
 import { card, tile, btn, metric, meter, empty, sectionHead } from '../../ui/components.js';
@@ -7,9 +7,9 @@ import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import {
   shipmentsForSite, statusBreakdown, unitsIn, siteStockRows, siteCoverage,
-  nextCadenceForSite, siteStudyWeek, getTrial, unreadCount,
+  nextCadenceForSite, siteStudyWeek, getTrial, getSiteTrial, unreadCount,
 } from '../../domain/selectors.js';
-import { shipmentCard } from '../common.js';
+import { shipmentCard, trialStrip, activeTrialId, setActiveTrialId } from '../common.js';
 
 export function render(main) {
   const db = store.getDb();
@@ -19,16 +19,35 @@ export function render(main) {
     return;
   }
 
-  const trial = getTrial(db, site.trialId);
-  const shipments = shipmentsForSite(db, site.id);
+  const trialId = activeTrialId(db, site);
+  const trial = getTrial(db, trialId);
+  const siteTrial = getSiteTrial(db, site.id, trialId);
+  if (!siteTrial) {
+    append(main, [
+      sectionHead(`${site.code} · ${site.address.city}`, site.name),
+      card({}, empty('This site is not running any trial yet.', 'flask')),
+    ]);
+    return;
+  }
+
+  const rerender = () => { main.replaceChildren(); render(main); };
+
+  // Every figure below belongs to one study: a site's ONC-204 stock says nothing
+  // about how its NEU-077 patients are supplied.
+  const shipments = shipmentsForSite(db, site.id).filter((s) => s.trialId === trialId);
   const open = shipments.filter((s) => s.status !== 'DELIVERED');
   const inTransit = open.reduce((sum, s) => sum + unitsIn(s), 0);
-  const rows = siteStockRows(db, site);
-  const coverage = siteCoverage(db, site);
-  const nextCadence = nextCadenceForSite(db, site);
-  const week = siteStudyWeek(site);
+  const rows = siteStockRows(db, siteTrial);
+  const coverage = siteCoverage(db, siteTrial);
+  const nextCadence = nextCadenceForSite(db, siteTrial);
+  const week = siteStudyWeek(siteTrial);
   const lowRows = rows.filter((r) => r.ratio < 0.5).slice(0, 4);
   const unread = unreadCount(db, site.id);
+
+  const strip = trialStrip(db, site, trialId, (id) => {
+    setActiveTrialId(id);
+    rerender();
+  });
 
   append(main, [
     sectionHead(
@@ -38,6 +57,8 @@ export function render(main) {
         variant: 'primary', iconName: 'plus', onClick: () => navigate('/fo/shipments'),
       }),
     ),
+
+    strip ? card({ variant: 'card--tight' }, strip) : null,
 
     h('div', { class: 'bento' },
       // --- headline metrics ---
@@ -64,7 +85,8 @@ export function render(main) {
           tile('chart'),
           h('div', {},
             h('div', { class: 'card__title' }, 'Shipments by status'),
-            h('div', { class: 'small dim' }, 'Every shipment this site has raised'))),
+            h('div', { class: 'small dim' },
+              `Everything this site has raised for ${trial ? trial.code : 'this trial'}`))),
         shipments.length
           ? statusBars(statusBreakdown(shipments).map((s) => ({
             label: s.label,

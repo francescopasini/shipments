@@ -3,6 +3,8 @@
 import { h, append, initials } from './el.js';
 import { icon, iconImg } from './icons.js';
 import { SHIPMENT_STATUS_META, PFI_STATUS_META } from '../domain/constants.js';
+import { sectionIcon } from '../views/sections.js';
+import { currentPath } from '../router.js';
 
 /* ---------- surfaces ---------- */
 
@@ -165,11 +167,20 @@ export function timeline(entries, renderRow) {
   return node;
 }
 
+/**
+ * The page head. The section's own artwork leads the title — the same icon the
+ * user clicked in the sidebar to get here — so the head reads as a continuation
+ * of the navigation. It is looked up from the route rather than passed in, so a
+ * new screen cannot be given the wrong one or forget it.
+ */
 export function sectionHead(title, sub, ...actions) {
+  const iconName = sectionIcon(currentPath());
   return h('div', { class: 'page-head' },
-    h('div', {},
-      h('h1', { class: 'page-head__title' }, title),
-      sub ? h('p', { class: 'page-head__sub' }, sub) : null),
+    h('div', { class: 'page-head__lead' },
+      iconName ? tile(iconName) : null,
+      h('div', {},
+        h('h1', { class: 'page-head__title' }, title),
+        sub ? h('p', { class: 'page-head__sub' }, sub) : null)),
     actions.length ? h('div', { class: 'page-head__actions' }, ...actions) : null);
 }
 

@@ -1,13 +1,18 @@
 // BO stock — items × locations matrix, filterable by location, country and trial.
+// A site holds stock per trial, so each site contributes one column per study.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { card, btn, empty, sectionHead, select, field, metric } from '../../ui/components.js';
+import { card, btn, empty, sectionHead, select, field } from '../../ui/components.js';
 import * as store from '../../store.js';
-import { CENTRAL, TRANSIT, matrixLocations, balance, totalAt } from '../../domain/stock.js';
+import { matrixLocations, balance } from '../../domain/stock.js';
 import { COUNTRIES } from '../../domain/constants.js';
 import { allTrials } from '../../domain/selectors.js';
 
-const filters = { location: 'ALL', country: 'ALL', trial: 'ALL', hideEmpty: true };
+const DEFAULTS = { location: 'ALL', country: 'ALL', trial: 'ALL', hideEmpty: true };
+const filters = { ...DEFAULTS };
+
+const isFiltered = () => Object.keys(DEFAULTS).some((k) => filters[k] !== DEFAULTS[k]);
+const reset = () => Object.assign(filters, DEFAULTS);
 
 export function render(main) {
   const db = store.getDb();
@@ -22,7 +27,7 @@ export function render(main) {
     // Country and trial narrow the site columns only.
     if (loc.kind !== 'site') return true;
     if (filters.country !== 'ALL' && loc.site.address.country !== filters.country) return false;
-    if (filters.trial !== 'ALL' && loc.site.trialId !== filters.trial) return false;
+    if (filters.trial !== 'ALL' && loc.trial.id !== filters.trial) return false;
     return true;
   });
 
@@ -35,18 +40,6 @@ export function render(main) {
 
   append(main, [
     sectionHead('Stock', `${rows.length} items across ${columns.length} locations`),
-
-    h('div', { class: 'bento' },
-      h('div', { class: 'col-4' }, metric(
-        fmtInt(totalAt(db, CENTRAL)), 'Central deposit', 'Units on hand', 'warehouse', 'sage',
-      )),
-      h('div', { class: 'col-4' }, metric(
-        fmtInt(totalAt(db, TRANSIT)), 'In transit', 'Committed to open shipments', 'truck', 'lilac',
-      )),
-      h('div', { class: 'col-4' }, metric(
-        fmtInt(db.sites.reduce((sum, s) => sum + totalAt(db, `site:${s.id}`), 0)),
-        'Held at sites', `${db.sites.filter((s) => s.active).length} active sites`, 'building', 'sky',
-      ))),
 
     card({ variant: 'card--tight' },
       h('div', { class: 'filters' },
@@ -73,32 +66,28 @@ export function render(main) {
           value: filters.trial,
           onChange: (e) => { filters.trial = e.target.value; rerender(); },
         }))),
-        btn(filters.hideEmpty ? 'Showing stocked items' : 'Showing every item', {
-          variant: 'ghost', size: 'sm', iconName: 'filter',
-          onClick: () => { filters.hideEmpty = !filters.hideEmpty; rerender(); },
-        }),
-        (filters.location !== 'ALL' || filters.country !== 'ALL' || filters.trial !== 'ALL')
+        // A labelled filter rather than a toggle whose caption was its own state:
+        // "Showing stocked items" read as an instruction rather than a setting.
+        h('div', { style: { minWidth: '180px' } }, field('Items', select([
+          { value: 'STOCKED', label: 'With stock somewhere' },
+          { value: 'ALL', label: 'Every catalogue item' },
+        ], {
+          value: filters.hideEmpty ? 'STOCKED' : 'ALL',
+          onChange: (e) => { filters.hideEmpty = e.target.value === 'STOCKED'; rerender(); },
+        }))),
+        isFiltered()
           ? btn('Clear filters', {
             variant: 'ghost', size: 'sm', iconName: 'close',
-            onClick: () => {
-              filters.location = 'ALL'; filters.country = 'ALL'; filters.trial = 'ALL';
-              rerender();
-            },
+            onClick: () => { reset(); rerender(); },
           })
-          : null),
-      h('p', { class: 'small dim' },
-        'Country and trial filters apply to site columns; the deposit and transit columns '
-        + 'are always shown unless the location filter hides them.')),
+          : null)),
 
     rows.length && columns.length
       ? card({}, matrix(db, rows, columns))
       : card({}, empty('Nothing matches those filters.', 'grid',
         btn('Clear filters', {
           variant: 'primary',
-          onClick: () => {
-            filters.location = 'ALL'; filters.country = 'ALL'; filters.trial = 'ALL';
-            rerender();
-          },
+          onClick: () => { reset(); rerender(); },
         }))),
   ]);
 }
@@ -110,7 +99,7 @@ function matrix(db, rows, columns) {
         h('tr', {},
           h('th', { class: 'col-head' }, 'Item'),
           ...columns.map((loc) => h('th', { title: loc.label }, loc.kind === 'site'
-            ? loc.site.code
+            ? loc.short
             : loc.label)),
           h('th', {}, 'Total'))),
       h('tbody', {}, ...rows.map((row) => {
@@ -124,7 +113,7 @@ function matrix(db, rows, columns) {
           ...row.cells.map((qty, i) => {
             const loc = columns[i];
             const target = loc.kind === 'site'
-              ? (loc.site.allocations.find((a) => a.itemId === row.item.id) || {}).targetQty
+              ? (loc.siteTrial.allocations.find((a) => a.itemId === row.item.id) || {}).targetQty
               : null;
             const low = target ? qty < target * 0.5 : false;
             return h('td', {

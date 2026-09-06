@@ -4,7 +4,7 @@ import { h, append } from '../../ui/el.js';
 import { card, tile, btn, iconBtn, empty } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
-import { getPfi } from '../../domain/workflow.js';
+import { getPfi, coordinatorForShipment } from '../../domain/workflow.js';
 import { getSite, userName } from '../../domain/selectors.js';
 import { shipmentHeader, linesTable, pfiPanel, shipmentTimeline } from '../common.js';
 
@@ -38,17 +38,13 @@ export function render(main, params) {
 
       h('div', { class: 'col-5' }, shipmentTimeline(db, shipment)),
 
-      h('div', { class: 'col-7' },
-        pfi && pfi.status !== 'NOT_REQUIRED'
-          ? pfiPanel(db, pfi)
-          : card({},
-            h('div', { class: 'row' }, tile('seal'),
-              h('div', {},
-                h('div', { class: 'card__title' }, 'Proforma invoice'),
-                h('div', { class: 'small dim' }, 'Not required for this site'))),
-            h('p', { class: 'small muted' },
-              `${site.code} ships without PFI approval, so the deposit can prepare this `
-              + 'shipment as soon as it is picked up.'))),
+      // The deposit prepares an invoice for every shipment; the site only reads it.
+      h('div', { class: 'col-7' }, pfiPanel(db, pfi, {
+        note: site.requiresPfiApproval
+          ? 'Prepared by the deposit and countersigned by an approver before your shipment '
+            + 'can be made up.'
+          : `${site.code} needs no separate approval, so the deposit issues this itself.`,
+      })),
 
       h('div', { class: 'col-5' }, card({},
         h('div', { class: 'row' }, tile('user'),
@@ -57,7 +53,7 @@ export function render(main, params) {
           h('span', { class: 'kv__k' }, 'Requested by'),
           h('span', { class: 'kv__v' }, userName(db, shipment.requestedById)),
           h('span', { class: 'kv__k' }, 'Shipping coordinator'),
-          h('span', { class: 'kv__v' }, userName(db, site.shippingCoordinatorId)),
+          h('span', { class: 'kv__v' }, userName(db, coordinatorForShipment(db, shipment))),
           pfi && pfi.approverId ? h('span', { class: 'kv__k' }, 'PFI approver') : null,
           pfi && pfi.approverId ? h('span', { class: 'kv__v' }, userName(db, pfi.approverId)) : null),
         h('p', { class: 'small muted' },

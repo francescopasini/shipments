@@ -4,7 +4,7 @@
 import { buildSeed } from './seed.js';
 
 export const STORE_KEY = 'shipmentsapp:v1';
-const STORE_VERSION = 1;
+const STORE_VERSION = 3;
 
 let db = null;
 const listeners = new Set();

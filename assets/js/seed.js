@@ -68,41 +68,67 @@ const CADENCES = [
   [2, 'Cohort 3 dosing',      18, [['IMP-100', 18], ['KIT-040', 10], ['LAB-060', 3]]],
 ];
 
-/** [code, name, trialIndex, country, city, street, postcode, active, requiresPfi, activatedDaysAgo] */
+/** [code, name, country, city, street, postcode, active, requiresPfi] */
 const SITES = [
-  ['S001', 'Ospedale San Raffaele',        0, 'IT', 'Milan',     'Via Olgettina 60',        '20132', true,  true,  180],
-  ['S002', 'Hospital Clínic',              0, 'ES', 'Barcelona', "Carrer de Villarroel 170", '08036', true,  true,  165],
-  ['S003', 'Charité Campus Mitte',         0, 'DE', 'Berlin',    'Charitéplatz 1',          '10117', true,  false, 150],
-  ['S004', 'Centre Léon Bérard',           0, 'FR', 'Lyon',      'Rue Laennec 28',          '69008', true,  true,  140],
-  ['S005', 'Instytut Onkologii',           0, 'PL', 'Warsaw',    'Wawelska 15',             '02-034', false, false, 210],
-  ['S006', 'Policlinico Gemelli',          1, 'IT', 'Rome',      'Largo Agostino Gemelli 8', '00168', true,  true,  120],
-  ['S007', 'Hospital La Paz',              1, 'ES', 'Madrid',    'Paseo de la Castellana 261', '28046', true, true,  115],
-  ['S008', 'Universitätsklinikum Eppendorf', 1, 'DE', 'Hamburg', 'Martinistraße 52',        '20246', true,  false, 105],
-  ['S009', 'Hôpital Bichat',               1, 'FR', 'Paris',     'Rue Henri Huchard 46',    '75018', true,  true,  98],
-  ['S010', 'AOU Federico II',              2, 'IT', 'Naples',    'Via Sergio Pansini 5',    '80131', true,  true,  76],
-  ['S011', 'Klinikum rechts der Isar',     2, 'DE', 'Munich',    'Ismaninger Straße 22',    '81675', true,  false, 70],
-  ['S012', 'Szpital Uniwersytecki',        2, 'PL', 'Kraków',    'Jakubowskiego 2',         '30-688', false, true,  190],
+  ['S001', 'Ospedale San Raffaele',        'IT', 'Milan',     'Via Olgettina 60',        '20132', true,  true],
+  ['S002', 'Hospital Clínic',              'ES', 'Barcelona', "Carrer de Villarroel 170", '08036', true,  true],
+  ['S003', 'Charité Campus Mitte',         'DE', 'Berlin',    'Charitéplatz 1',          '10117', true,  false],
+  ['S004', 'Centre Léon Bérard',           'FR', 'Lyon',      'Rue Laennec 28',          '69008', true,  true],
+  ['S005', 'Instytut Onkologii',           'PL', 'Warsaw',    'Wawelska 15',             '02-034', false, false],
+  ['S006', 'Policlinico Gemelli',          'IT', 'Rome',      'Largo Agostino Gemelli 8', '00168', true,  true],
+  ['S007', 'Hospital La Paz',              'ES', 'Madrid',    'Paseo de la Castellana 261', '28046', true, true],
+  ['S008', 'Universitätsklinikum Eppendorf', 'DE', 'Hamburg', 'Martinistraße 52',        '20246', true,  false],
+  ['S009', 'Hôpital Bichat',               'FR', 'Paris',     'Rue Henri Huchard 46',    '75018', true,  true],
+  ['S010', 'AOU Federico II',              'IT', 'Naples',    'Via Sergio Pansini 5',    '80131', true,  true],
+  ['S011', 'Klinikum rechts der Isar',     'DE', 'Munich',    'Ismaninger Straße 22',    '81675', true,  false],
+  ['S012', 'Szpital Uniwersytecki',        'PL', 'Kraków',    'Jakubowskiego 2',         '30-688', false, true],
+];
+
+/**
+ * The site ↔ trial join. Sites run several studies at once — the big academic
+ * centres carry two or three — and each pairing has its own activation date and
+ * deposit coordinator.
+ *
+ * [siteCode, trialIndex, activatedDaysAgo, coordinatorIndex]
+ * `coordinatorIndex` selects from the shipping coordinators, in order.
+ */
+const SITE_TRIALS = [
+  ['S001', 0, 180, 0],
+  ['S001', 2, 64,  1],
+  ['S002', 0, 165, 1],
+  ['S003', 0, 150, 1],
+  ['S003', 1, 96,  0],
+  ['S004', 0, 140, 0],
+  ['S005', 0, 210, 1],
+  ['S006', 1, 120, 0],
+  ['S006', 0, 88,  1],
+  ['S007', 1, 115, 0],
+  ['S008', 1, 105, 1],
+  ['S009', 1, 98,  1],
+  ['S009', 2, 52,  0],
+  ['S010', 2, 76,  1],
+  ['S011', 2, 70,  0],
+  ['S011', 1, 44,  0],
+  ['S012', 2, 190, 1],
 ];
 
 /** [name, email, boRoles] */
+/* One of each shape the back office can take: a plain shipping coordinator, a
+   plain approver, and somebody who is both — enough to show that an approver may
+   never countersign an invoice they raised themselves. */
 const BO_USERS = [
   ['Marta Lombardi',  'marta.lombardi@depot.example',  [BO_ROLE.SHIPPING_COORDINATOR]],
-  ['Tobias Renner',   'tobias.renner@depot.example',   [BO_ROLE.SHIPPING_COORDINATOR]],
   ['Camille Aubert',  'camille.aubert@depot.example',  [BO_ROLE.PFI_APPROVER]],
-  ['Piotr Zieliński', 'piotr.zielinski@depot.example', [BO_ROLE.PFI_APPROVER]],
   ['Núria Sabaté',    'nuria.sabate@depot.example',    [BO_ROLE.SHIPPING_COORDINATOR, BO_ROLE.PFI_APPROVER]],
 ];
 
 /** [name, email, siteCodes] */
+/* Three site coordinators between them cover every site, so no site is left
+   without somebody who can raise a request for it. */
 const FO_USERS = [
-  ['Elena Rossi',       'elena.rossi@site.example',       ['S001', 'S010']],
-  ['Marc Vidal',        'marc.vidal@site.example',        ['S002']],
-  ['Anke Brandt',       'anke.brandt@site.example',       ['S003', 'S008']],
-  ['Julien Perrot',     'julien.perrot@site.example',     ['S004', 'S009']],
-  ['Agnieszka Nowak',   'agnieszka.nowak@site.example',   ['S005', 'S012']],
-  ['Sara Bianchi',      'sara.bianchi@site.example',      ['S001', 'S006']],
-  ['Diego Herrera',     'diego.herrera@site.example',     ['S007']],
-  ['Lukas Weber',       'lukas.weber@site.example',       ['S003', 'S011']],
+  ['Elena Rossi',  'elena.rossi@site.example',  ['S001', 'S002', 'S010', 'S012']],
+  ['Marc Vidal',   'marc.vidal@site.example',   ['S003', 'S004', 'S007', 'S011']],
+  ['Anke Brandt',  'anke.brandt@site.example',  ['S005', 'S006', 'S008', 'S009']],
 ];
 
 /** How many shipments to place in each status. */
@@ -158,28 +184,38 @@ export function buildSeed() {
   const coordinators = boUsers.filter((u) => u.boRoles.includes(BO_ROLE.SHIPPING_COORDINATOR));
 
   // --- sites ---
-  const sites = SITES.map(([code, name, ti, country, city, street, postalCode, active, requiresPfi, activatedDaysAgo], i) => {
+  const sites = SITES.map(([code, name, country, city, street, postalCode, active, requiresPfi], i) => ({
+    id: `site-${i + 1}`,
+    code, name,
+    address: { street, city, country, postalCode },
+    active,
+    // Whether a proforma invoice is needed is customs-driven, so it belongs to
+    // the site rather than to any one study running there.
+    requiresPfiApproval: requiresPfi,
+  }));
+  const siteByCode = Object.fromEntries(sites.map((s) => [s.code, s]));
+  const siteById = Object.fromEntries(sites.map((s) => [s.id, s]));
+
+  // --- site ↔ trial pairings ---
+  // The allocation target for a pair is everything that trial's cadences can ask for.
+  const siteTrials = SITE_TRIALS.map(([siteCode, ti, activatedDaysAgo, ci], i) => {
+    const site = siteByCode[siteCode];
     const trial = trials[ti];
-    const trialCadences = cadences.filter((c) => c.trialId === trial.id);
-    // A site's allocation target is everything its trial's cadences can ask for.
     const targets = new Map();
-    for (const cad of trialCadences) {
+    for (const cad of cadences.filter((c) => c.trialId === trial.id)) {
       for (const line of cad.lines) {
         targets.set(line.itemId, (targets.get(line.itemId) || 0) + line.suggestedQty);
       }
     }
     return {
-      id: `site-${i + 1}`,
-      code, name, trialId: trial.id,
-      address: { street, city, country, postalCode },
-      active,
-      requiresPfiApproval: requiresPfi,
-      shippingCoordinatorId: coordinators[i % coordinators.length].id,
+      id: `st-${i + 1}`,
+      siteId: site.id,
+      trialId: trial.id,
       activatedOn: daysAgo(activatedDaysAgo),
+      shippingCoordinatorId: coordinators[ci % coordinators.length].id,
       allocations: [...targets].map(([itemId, targetQty]) => ({ itemId, targetQty })),
     };
   });
-  const siteByCode = Object.fromEntries(sites.map((s) => [s.code, s]));
 
   const foUsers = FO_USERS.map(([name, email, codes], i) => ({
     id: `fo-${i + 1}`, name, email, role: 'FO', boRoles: [],
@@ -190,7 +226,8 @@ export function buildSeed() {
   const approvers = boUsers.filter((u) => u.boRoles.includes(BO_ROLE.PFI_APPROVER));
 
   // --- shipments ---
-  const activeSites = sites.filter((s) => s.active);
+  const isActive = (st) => siteById[st.siteId].active;
+  const activePairs = siteTrials.filter(isActive);
   const shipments = [];
   const pfis = [];
   const tasks = [];
@@ -205,19 +242,20 @@ export function buildSeed() {
     for (let i = 0; i < count; i += 1) plan.push(status);
   }
 
-  const pfiSites = activeSites.filter((s) => s.requiresPfiApproval);
-  let siteCursor = 0;
-  let pfiSiteCursor = 0;
+  const pfiPairs = activePairs.filter((st) => siteById[st.siteId].requiresPfiApproval);
+  let pairCursor = 0;
+  let pfiPairCursor = 0;
 
   for (const status of plan) {
     // A shipment can only sit in AWAITING_PFI_APPROVAL if its site actually requires approval.
-    const site = status === SHIPMENT_STATUS.AWAITING_PFI_APPROVAL
-      ? pfiSites[pfiSiteCursor++ % pfiSites.length]
-      : activeSites[siteCursor++ % activeSites.length];
-    const trial = trials.find((t) => t.id === site.trialId);
+    const siteTrial = status === SHIPMENT_STATUS.AWAITING_PFI_APPROVAL
+      ? pfiPairs[pfiPairCursor++ % pfiPairs.length]
+      : activePairs[pairCursor++ % activePairs.length];
+    const site = siteById[siteTrial.siteId];
+    const trial = trials.find((t) => t.id === siteTrial.trialId);
     const cadence = pick(cadences.filter((c) => c.trialId === trial.id));
     const requester = pick(foUsers.filter((u) => u.siteIds.includes(site.id))) || foUsers[0];
-    const coordinatorId = site.shippingCoordinatorId;
+    const coordinatorId = siteTrial.shippingCoordinatorId;
     const usesPfi = site.requiresPfiApproval;
     const approverId = usesPfi
       ? pick(approvers.filter((a) => a.id !== coordinatorId)).id
@@ -249,20 +287,29 @@ export function buildSeed() {
     const deliveredEntry = timeline.find((t) => t.status === SHIPMENT_STATUS.DELIVERED);
 
     // --- PFI ---
+    // Every shipment has one: it is the customs paperwork, not an approval step.
+    // A shipment still sitting at "new request" has a draft on the coordinator's
+    // desk; anything further along has an invoice that was either issued by the
+    // coordinator or approved by somebody else.
     const reached = (s) => path.includes(s);
-    let pfiStatus = PFI_STATUS.NOT_REQUIRED;
+    const readyAt = timeline.find((t) => t.status === SHIPMENT_STATUS.READY_FOR_PREPARATION)?.at;
+    let pfiStatus = PFI_STATUS.DRAFT;
     let requestedApprovalAt = null;
     let decidedAt = null;
-    if (usesPfi) {
-      if (status === SHIPMENT_STATUS.NEW_REQUEST) pfiStatus = PFI_STATUS.DRAFT;
-      else if (status === SHIPMENT_STATUS.AWAITING_PFI_APPROVAL) {
+    if (status === SHIPMENT_STATUS.NEW_REQUEST) {
+      pfiStatus = PFI_STATUS.DRAFT;
+    } else if (usesPfi) {
+      if (status === SHIPMENT_STATUS.AWAITING_PFI_APPROVAL) {
         pfiStatus = PFI_STATUS.PENDING_APPROVAL;
         requestedApprovalAt = timeline.at(-1).at;
       } else {
         pfiStatus = PFI_STATUS.APPROVED;
         requestedApprovalAt = timeline.find((t) => t.status === SHIPMENT_STATUS.AWAITING_PFI_APPROVAL)?.at || requestedAt;
-        decidedAt = timeline.find((t) => t.status === SHIPMENT_STATUS.READY_FOR_PREPARATION)?.at || requestedAt;
+        decidedAt = readyAt || requestedAt;
       }
+    } else {
+      pfiStatus = PFI_STATUS.ISSUED;
+      decidedAt = readyAt || requestedAt;
     }
     const pfiId = `pfi-${pfis.length + 1}`;
     pfis.push({
@@ -313,7 +360,7 @@ export function buildSeed() {
           id: `led-${ledger.length + 1}`,
           at: deliveredEntry.at,
           itemId: line.itemId,
-          from: TRANSIT, to: siteLocation(site.id),
+          from: TRANSIT, to: siteLocation(site.id, trial.id),
           qty: line.qty,
           shipmentId: id,
           reason: LEDGER_REASON.DELIVERY,
@@ -351,8 +398,8 @@ export function buildSeed() {
 
   // --- opening central stock, sized against total demand ---
   const demandByItem = {};
-  for (const site of sites) {
-    for (const a of site.allocations) {
+  for (const st of siteTrials) {
+    for (const a of st.allocations) {
       demandByItem[a.itemId] = (demandByItem[a.itemId] || 0) + a.targetQty;
     }
   }
@@ -387,24 +434,24 @@ export function buildSeed() {
     }
   }
 
-  // --- settle each site on a plausible opening position ---
+  // --- settle each site-trial on a plausible opening position ---
   // Deliveries alone would leave a site holding only the cadences it happened to
   // receive, so every allocated item is trued up to 35–85% of its target: the
   // shortfall becomes site-activation stock, the excess becomes consumption.
   const settlement = [];
-  for (const site of sites) {
-    const location = siteLocation(site.id);
-    for (const a of site.allocations) {
+  for (const st of siteTrials) {
+    const location = siteLocation(st.siteId, st.trialId);
+    for (const a of st.allocations) {
       const delivered = ledger
         .filter((l) => l.to === location && l.itemId === a.itemId)
         .reduce((sum, l) => sum + l.qty, 0);
-      const desired = site.active
+      const desired = siteById[st.siteId].active
         ? Math.round(a.targetQty * (0.35 + rnd() * 0.5))
         : 0;
       const delta = desired - delivered;
       if (!delta) continue;
       settlement.push({
-        id: `led-settle-${site.id}-${a.itemId}`,
+        id: `led-settle-${st.id}-${a.itemId}`,
         at: daysAgo(delta > 0 ? 89 : between(1, 14)),
         itemId: a.itemId,
         from: delta < 0 ? location : null,
@@ -427,7 +474,7 @@ export function buildSeed() {
   return {
     currentUserId: foUsers[0].id,
     currentSiteId: foUsers[0].siteIds[0],
-    users, trials, cadences, items, sites,
+    users, trials, cadences, items, sites, siteTrials,
     shipments, pfis, tasks, notifications,
     stock, stockLedger, depositHistory,
   };

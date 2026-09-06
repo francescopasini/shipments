@@ -7,7 +7,9 @@ import {
 import { navigate } from '../router.js';
 import * as store from '../store.js';
 import { BO_ROLE_META } from '../domain/constants.js';
-import { sitesForUser, getTrial, openTasksFor, getSite, byCode } from '../domain/selectors.js';
+import {
+  sitesForUser, trialSummary, openTasksFor, getSite, getTrial,
+} from '../domain/selectors.js';
 
 export function render(main) {
   const db = store.getDb();
@@ -45,24 +47,21 @@ export function render(main) {
             h('div', {},
               h('div', { class: 'card__title' }, 'Sites you can access'),
               h('div', { class: 'small dim' }, 'Switch between them from the sidebar'))),
-          h('div', { class: 'stack-sm' }, ...sitesForUser(db, user).map((site) => {
-            const trial = getTrial(db, site.trialId);
-            return h('button', {
-              type: 'button',
-              class: 'card card--tight card--action',
-              onClick: () => {
-                store.setCurrentSite(site.id);
-                navigate('/fo/dashboard');
-                toast(`Switched to ${site.code}.`);
-              },
+          h('div', { class: 'stack-sm' }, ...sitesForUser(db, user).map((site) => h('button', {
+            type: 'button',
+            class: 'card card--tight card--action',
+            onClick: () => {
+              store.setCurrentSite(site.id);
+              navigate('/fo/dashboard');
+              toast(`Switched to ${site.code}.`);
             },
-            h('div', { class: 'row' },
-              h('div', { class: 'grow', style: { minWidth: 0 } },
-                h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
-                h('div', { class: 'small dim truncate' },
-                  `${site.address.city}${trial ? ` · ${trial.code}` : ''}`)),
-              site.id === db.currentSiteId ? badge('Current', 'sage') : null));
-          }))))
+          },
+          h('div', { class: 'row' },
+            h('div', { class: 'grow', style: { minWidth: 0 } },
+              h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
+              h('div', { class: 'small dim truncate' },
+                `${site.address.city} · ${trialSummary(db, site.id)}`)),
+            site.id === db.currentSiteId ? badge('Current', 'sage') : null))))))
         : h('div', { class: 'col-12' }, card({},
           h('div', { class: 'row' }, tile('building'),
             h('div', {},
@@ -73,19 +72,28 @@ export function render(main) {
   ]);
 }
 
+/* Coordination is assigned per site-trial, so one row per pairing: the same
+   hospital can appear twice under two different studies. */
 function coordinatedSites(db, user) {
-  const sites = byCode(db.sites.filter((s) => s.shippingCoordinatorId === user.id));
-  if (!sites.length) return empty('You are not the shipping coordinator for any site.', 'building');
-  return h('div', { class: 'stack-sm' }, ...sites.map((site) => h('button', {
+  const pairs = db.siteTrials
+    .filter((st) => st.shippingCoordinatorId === user.id)
+    .map((st) => ({ siteTrial: st, site: getSite(db, st.siteId), trial: getTrial(db, st.trialId) }))
+    .filter((p) => p.site && p.trial)
+    .sort((a, b) => a.site.code.localeCompare(b.site.code)
+      || a.trial.code.localeCompare(b.trial.code));
+
+  if (!pairs.length) return empty('You are not the shipping coordinator for any trial.', 'building');
+
+  return h('div', { class: 'stack-sm' }, ...pairs.map(({ site, trial }) => h('button', {
     type: 'button',
     class: 'card card--tight card--action',
     onClick: () => navigate(`/bo/sites/${site.id}`),
   },
   h('div', { class: 'row' },
     h('div', { class: 'grow', style: { minWidth: 0 } },
-      h('div', { class: 'strong truncate' }, `${site.code} · ${site.address.city}`),
+      h('div', { class: 'strong truncate' }, `${site.code} · ${trial.code}`),
       h('div', { class: 'small dim truncate' },
-        site.requiresPfiApproval ? 'PFI approval required' : 'No PFI approval')),
+        `${site.address.city} · ${site.requiresPfiApproval ? 'PFI approval required' : 'No PFI approval'}`)),
     badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose')))));
 }
 

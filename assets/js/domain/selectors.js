@@ -1,7 +1,7 @@
 // Derived reads over the database. Pure functions — no mutation.
 
 import { SHIPMENT_STATUS_ORDER, SHIPMENT_STATUS_META, BO_ROLE, COUNTRIES } from './constants.js';
-import { balance, siteLocation, requestableQty, siteCoverage } from './stock.js';
+import { balance, siteLocation, requestableQty, siteCoverage, totalAtSite } from './stock.js';
 
 /* ---------- lookups ---------- */
 
@@ -27,7 +27,43 @@ export const byCode = (rows) => [...rows].sort((a, b) => a.code.localeCompare(b.
 export const allSites = (db) => byCode(db.sites);
 export const allTrials = (db) => byCode(db.trials);
 
-export const sitesForTrial = (db, trialId) => byCode(db.sites.filter((s) => s.trialId === trialId));
+/* ---------- the site ↔ trial join ---------- */
+
+/* A site runs any number of trials, and every trial runs at any number of sites.
+   `db.siteTrials` is that join, and it carries everything that only makes sense
+   for one pair: the allocation targets, the activation date the study week is
+   measured from, and the deposit coordinator who fields that study's requests. */
+
+export const getSiteTrial = (db, siteId, trialId) => db.siteTrials
+  .find((st) => st.siteId === siteId && st.trialId === trialId) || null;
+
+export const siteTrialsForSite = (db, siteId) => db.siteTrials
+  .filter((st) => st.siteId === siteId)
+  .sort((a, b) => trialCode(db, a.trialId).localeCompare(trialCode(db, b.trialId)));
+
+export const siteTrialsForTrial = (db, trialId) => db.siteTrials
+  .filter((st) => st.trialId === trialId)
+  .sort((a, b) => siteCode(db, a.siteId).localeCompare(siteCode(db, b.siteId)));
+
+/** The trials a site runs, as trial objects, in code order. */
+export const trialsForSite = (db, siteId) => siteTrialsForSite(db, siteId)
+  .map((st) => getTrial(db, st.trialId))
+  .filter(Boolean);
+
+export const sitesForTrial = (db, trialId) => byCode(siteTrialsForTrial(db, trialId)
+  .map((st) => getSite(db, st.siteId))
+  .filter(Boolean));
+
+const trialCode = (db, id) => (getTrial(db, id) || {}).code || '';
+const siteCode = (db, id) => (getSite(db, id) || {}).code || '';
+
+/** How a site's trials read on a one-line summary: codes, or a count past two. */
+export function trialSummary(db, siteId) {
+  const trials = trialsForSite(db, siteId);
+  if (!trials.length) return 'No trials';
+  if (trials.length > 2) return `${trials.length} trials`;
+  return trials.map((t) => t.code).join(' · ');
+}
 
 export const coordinatorsForSite = (db, siteId) => db.users
   .filter((u) => u.role === 'FO' && u.siteIds.includes(siteId));
@@ -86,16 +122,20 @@ export const unreadCount = (db, siteId) => db.notifications
 /* ---------- site metrics ---------- */
 
 /**
- * A site's stock position per allocated item:
+ * One site-trial's stock position per allocated item:
  * [{ item, held, target, inbound, requestable, ratio }]
  */
-export function siteStockRows(db, site) {
-  return site.allocations
+export function siteStockRows(db, siteTrial) {
+  if (!siteTrial) return [];
+  const location = siteLocation(siteTrial.siteId, siteTrial.trialId);
+  return siteTrial.allocations
     .map((a) => {
       const item = getItem(db, a.itemId);
-      const held = balance(db, siteLocation(site.id), a.itemId);
+      const held = balance(db, location, a.itemId);
       const inbound = db.shipments
-        .filter((s) => s.siteId === site.id && s.status !== 'DELIVERED')
+        .filter((s) => s.siteId === siteTrial.siteId
+          && s.trialId === siteTrial.trialId
+          && s.status !== 'DELIVERED')
         .flatMap((s) => s.lines)
         .filter((l) => l.itemId === a.itemId)
         .reduce((sum, l) => sum + l.qty, 0);
@@ -104,7 +144,7 @@ export function siteStockRows(db, site) {
         held,
         inbound,
         target: a.targetQty,
-        requestable: requestableQty(db, site, a.itemId),
+        requestable: requestableQty(db, siteTrial, a.itemId),
         ratio: a.targetQty ? held / a.targetQty : 1,
       };
     })
@@ -112,18 +152,27 @@ export function siteStockRows(db, site) {
     .sort((a, b) => a.ratio - b.ratio);
 }
 
-export { siteCoverage };
+export { siteCoverage, totalAtSite };
 
-/** Weeks elapsed since the site was activated — used to suggest the next cadence. */
-export function siteStudyWeek(site) {
-  const days = (Date.now() - new Date(site.activatedOn).getTime()) / 86400000;
+/** Mean coverage across every trial a site runs — one number for a list row. */
+export function siteCoverageAll(db, site) {
+  const pairs = siteTrialsForSite(db, site.id);
+  if (!pairs.length) return 1;
+  return pairs.reduce((sum, st) => sum + siteCoverage(db, st), 0) / pairs.length;
+}
+
+/** Weeks elapsed since the site was activated for this trial. */
+export function siteStudyWeek(siteTrial) {
+  if (!siteTrial) return 1;
+  const days = (Date.now() - new Date(siteTrial.activatedOn).getTime()) / 86400000;
   return Math.max(1, Math.floor(days / 7) + 1);
 }
 
-/** The cadence a site is closest to needing next. */
-export function nextCadenceForSite(db, site) {
-  const week = siteStudyWeek(site);
-  const cadences = cadencesForTrial(db, site.trialId);
+/** The cadence a site-trial is closest to needing next. */
+export function nextCadenceForSite(db, siteTrial) {
+  if (!siteTrial) return null;
+  const week = siteStudyWeek(siteTrial);
+  const cadences = cadencesForTrial(db, siteTrial.trialId);
   return cadences.find((c) => c.week >= week) || cadences.at(-1) || null;
 }
 
@@ -134,9 +183,10 @@ export const shippingCoordinators = (db) => db.users
 
 /** Items whose central-deposit cover is thin relative to outstanding demand. */
 export function lowDepositItems(db, limit = 5) {
+  const activeSiteIds = new Set(db.sites.filter((s) => s.active).map((s) => s.id));
   const demand = {};
-  for (const site of db.sites.filter((s) => s.active)) {
-    for (const a of site.allocations) demand[a.itemId] = (demand[a.itemId] || 0) + a.targetQty;
+  for (const st of db.siteTrials.filter((x) => activeSiteIds.has(x.siteId))) {
+    for (const a of st.allocations) demand[a.itemId] = (demand[a.itemId] || 0) + a.targetQty;
   }
   return db.items
     .map((item) => {

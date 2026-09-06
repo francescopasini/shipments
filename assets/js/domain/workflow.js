@@ -66,6 +66,18 @@ function notify(db, siteId, type, shipmentId, message) {
 export const getShipment = (db, id) => db.shipments.find((s) => s.id === id) || null;
 export const getPfi = (db, shipment) => db.pfis.find((p) => p.id === shipment.pfiId) || null;
 
+export const getSiteTrial = (db, siteId, trialId) => db.siteTrials
+  .find((st) => st.siteId === siteId && st.trialId === trialId) || null;
+
+/**
+ * The deposit coordinator who owns this shipment. The assignment is per
+ * site-trial: one hospital can route ONC-204 to Marta and NEU-077 to Tobias.
+ */
+export function coordinatorForShipment(db, shipment) {
+  const siteTrial = getSiteTrial(db, shipment.siteId, shipment.trialId);
+  return siteTrial ? siteTrial.shippingCoordinatorId : null;
+}
+
 /* ---------- transitions ---------- */
 
 /**
@@ -74,11 +86,13 @@ export const getPfi = (db, shipment) => db.pfis.find((p) => p.id === shipment.pf
  *
  * lines: [{ itemId, qty }] — zero-quantity lines are dropped.
  */
-export function requestShipment(db, { siteId, cadenceId, lines, userId }) {
+export function requestShipment(db, { siteId, trialId, cadenceId, lines, userId }) {
   const site = db.sites.find((s) => s.id === siteId);
+  const siteTrial = getSiteTrial(db, siteId, trialId);
   const cadence = db.cadences.find((c) => c.id === cadenceId);
   const wanted = lines.filter((l) => l.qty > 0);
-  if (!site || !cadence || !wanted.length) return null;
+  // The cadence has to belong to the trial being requested against.
+  if (!site || !siteTrial || !cadence || cadence.trialId !== trialId || !wanted.length) return null;
 
   const usesPfi = site.requiresPfiApproval;
   const shipmentId = `ship-${db.shipments.length + 1}-${Date.now().toString(36)}`;
@@ -88,7 +102,7 @@ export function requestShipment(db, { siteId, cadenceId, lines, userId }) {
     id: shipmentId,
     code: nextShipmentCode(db),
     siteId,
-    trialId: site.trialId,
+    trialId,
     cadenceId,
     status: ST.NEW_REQUEST,
     lines: wanted.map((l) => ({ itemId: l.itemId, qty: Math.round(l.qty) })),
@@ -104,8 +118,10 @@ export function requestShipment(db, { siteId, cadenceId, lines, userId }) {
     id: pfiId,
     shipmentId,
     number: nextPfiNumber(db),
-    status: usesPfi ? PFI_STATUS.DRAFT : PFI_STATUS.NOT_REQUIRED,
-    preparedById: site.shippingCoordinatorId,
+    // Always a draft: the invoice has to be prepared either way, and only its
+    // ending differs — issued by the coordinator, or approved by someone else.
+    status: PFI_STATUS.DRAFT,
+    preparedById: siteTrial.shippingCoordinatorId,
     approverId: null,
     requestedAt: null,
     decidedAt: null,
@@ -122,7 +138,7 @@ export function requestShipment(db, { siteId, cadenceId, lines, userId }) {
 
   openTask(db, {
     type: TASK_TYPE.PREPARE_SHIPMENT,
-    assigneeId: site.shippingCoordinatorId,
+    assigneeId: siteTrial.shippingCoordinatorId,
     shipmentId,
     pfiId,
   });
@@ -155,7 +171,6 @@ export function approvePfi(db, shipmentId, userId) {
   const shipment = getShipment(db, shipmentId);
   if (!shipment || shipment.status !== ST.AWAITING_PFI_APPROVAL) return null;
   const pfi = getPfi(db, shipment);
-  const site = db.sites.find((s) => s.id === shipment.siteId);
 
   pfi.status = PFI_STATUS.APPROVED;
   pfi.decidedAt = now();
@@ -165,7 +180,7 @@ export function approvePfi(db, shipmentId, userId) {
   addTimeline(shipment, ST.READY_FOR_PREPARATION, userId);
   openTask(db, {
     type: TASK_TYPE.CONTINUE_SHIPMENT,
-    assigneeId: site.shippingCoordinatorId,
+    assigneeId: coordinatorForShipment(db, shipment),
     shipmentId,
     pfiId: pfi.id,
   });
@@ -179,7 +194,6 @@ export function requestPfiChanges(db, shipmentId, userId, comment) {
   const shipment = getShipment(db, shipmentId);
   if (!shipment || shipment.status !== ST.AWAITING_PFI_APPROVAL) return null;
   const pfi = getPfi(db, shipment);
-  const site = db.sites.find((s) => s.id === shipment.siteId);
 
   pfi.status = PFI_STATUS.CHANGES_REQUESTED;
   pfi.decidedAt = now();
@@ -189,7 +203,7 @@ export function requestPfiChanges(db, shipmentId, userId, comment) {
   addTimeline(shipment, ST.NEW_REQUEST, userId, comment || 'Changes requested on the PFI');
   openTask(db, {
     type: TASK_TYPE.PREPARE_SHIPMENT,
-    assigneeId: site.shippingCoordinatorId,
+    assigneeId: coordinatorForShipment(db, shipment),
     shipmentId,
     pfiId: pfi.id,
   });
@@ -200,13 +214,21 @@ export function requestPfiChanges(db, shipmentId, userId, comment) {
 export function markReadyForPreparation(db, shipmentId, userId) {
   const shipment = getShipment(db, shipmentId);
   if (!shipment || shipment.status !== ST.NEW_REQUEST) return null;
-  const site = db.sites.find((s) => s.id === shipment.siteId);
+
+  // Nobody else countersigns here, so finalising the shipment is what issues
+  // the invoice. It stops being editable at the same moment.
+  const pfi = getPfi(db, shipment);
+  if (pfi) {
+    pfi.status = PFI_STATUS.ISSUED;
+    pfi.decidedAt = now();
+    pfi.comment = null;
+  }
 
   closeTasks(db, shipmentId, TASK_TYPE.PREPARE_SHIPMENT);
   addTimeline(shipment, ST.READY_FOR_PREPARATION, userId);
   openTask(db, {
     type: TASK_TYPE.CONTINUE_SHIPMENT,
-    assigneeId: site.shippingCoordinatorId,
+    assigneeId: coordinatorForShipment(db, shipment),
     shipmentId,
     pfiId: shipment.pfiId,
   });
@@ -238,12 +260,63 @@ export function markShipped(db, shipmentId, userId) {
 export function markDelivered(db, shipmentId, userId) {
   const shipment = getShipment(db, shipmentId);
   if (!shipment || shipment.status !== ST.SHIPPED) return null;
-  moveShipment(db, shipment, TRANSIT, siteLocation(shipment.siteId), LEDGER_REASON.DELIVERY);
+  moveShipment(db, shipment, TRANSIT, siteLocation(shipment.siteId, shipment.trialId), LEDGER_REASON.DELIVERY);
   closeTasks(db, shipmentId);
   addTimeline(shipment, ST.DELIVERED, userId);
   notify(db, shipment.siteId, NOTIFICATION_TYPE.SHIPMENT_DELIVERED, shipmentId,
     `${shipment.code} was delivered — please confirm your stock`);
   return shipment;
+}
+
+/* ---------- preparing the invoice ---------- */
+
+/** A PFI is ready to leave the coordinator's hands once every line is priced. */
+export const pfiIsPrepared = (pfi) => !!pfi
+  && pfi.lines.length > 0
+  && pfi.lines.every((l) => l.unitValue > 0 && String(l.hsCode || '').trim());
+
+/** Statuses where the coordinator may still change the invoice. */
+const EDITABLE_PFI = [PFI_STATUS.DRAFT, PFI_STATUS.CHANGES_REQUESTED];
+
+/**
+ * Whether `user` may edit this shipment's invoice: they have to be the
+ * coordinator for its site-trial, and it must not have been issued, approved,
+ * or sent off for approval yet — the declared values are what an approver signs.
+ */
+export function canEditPfi(db, shipment, user) {
+  if (!user || user.role !== 'BO') return false;
+  if (coordinatorForShipment(db, shipment) !== user.id) return false;
+  const pfi = getPfi(db, shipment);
+  return !!pfi && EDITABLE_PFI.includes(pfi.status);
+}
+
+/**
+ * Save the coordinator's edits. Quantities are deliberately not editable here:
+ * they come from the shipment's own lines, which the stock ledger has already
+ * moved into transit, so changing them would put the two out of step.
+ *
+ * lines: [{ itemId, unitValue, hsCode }]
+ */
+export function updatePfi(db, shipmentId, { currency, lines }, userId) {
+  const shipment = getShipment(db, shipmentId);
+  if (!shipment) return null;
+  const pfi = getPfi(db, shipment);
+  if (!pfi || !EDITABLE_PFI.includes(pfi.status)) return null;
+
+  const edits = new Map((lines || []).map((l) => [l.itemId, l]));
+  for (const line of pfi.lines) {
+    const edit = edits.get(line.itemId);
+    if (!edit) continue;
+    line.unitValue = Math.max(0, Number(edit.unitValue) || 0);
+    line.hsCode = String(edit.hsCode || '').trim();
+  }
+  if (currency) pfi.currency = currency;
+  // Whoever last worked on it is who prepared it.
+  pfi.preparedById = userId;
+  // Re-editing after a knock-back puts it back to a plain draft.
+  pfi.status = PFI_STATUS.DRAFT;
+  shipment.updatedAt = now();
+  return pfi;
 }
 
 /* ---------- what the current user may do ---------- */
@@ -256,7 +329,7 @@ export function availableActions(db, shipment, user) {
   if (!user || user.role !== 'BO') return [];
   const site = db.sites.find((s) => s.id === shipment.siteId);
   const pfi = getPfi(db, shipment);
-  const isCoordinator = site && site.shippingCoordinatorId === user.id;
+  const isCoordinator = coordinatorForShipment(db, shipment) === user.id;
   const isApprover = pfi && pfi.approverId === user.id;
 
   switch (shipment.status) {
