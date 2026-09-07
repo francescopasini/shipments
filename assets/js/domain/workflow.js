@@ -13,7 +13,7 @@ import {
   SHIPMENT_STATUS as ST, PFI_STATUS, TASK_TYPE, BO_ROLE,
   CENTRAL, TRANSIT, siteLocation, LEDGER_REASON, NOTIFICATION_TYPE,
 } from './constants.js';
-import { move, moveShipment } from './stock.js';
+import { move, moveShipment, requestableCadenceUnits } from './stock.js';
 
 const now = () => new Date().toISOString();
 
@@ -63,6 +63,22 @@ function notify(db, siteId, type, shipmentId, message) {
   });
 }
 
+/**
+ * The lines a set of picks comes to. An item carried by two of the chosen
+ * cadences arrives once, for the sum of both — it is the same box either way.
+ */
+function linesFor(db, picks) {
+  const totals = new Map();
+  for (const pick of picks) {
+    const cadence = db.cadences.find((c) => c.id === pick.cadenceId);
+    if (!cadence) continue;
+    for (const itemId of cadence.itemIds) {
+      totals.set(itemId, (totals.get(itemId) || 0) + pick.units);
+    }
+  }
+  return [...totals].map(([itemId, qty]) => ({ itemId, qty }));
+}
+
 export const getShipment = (db, id) => db.shipments.find((s) => s.id === id) || null;
 export const getPfi = (db, shipment) => db.pfis.find((p) => p.id === shipment.pfiId) || null;
 
@@ -84,15 +100,31 @@ export function coordinatorForShipment(db, shipment) {
  * FO requests a shipment. Creates the shipment and its PFI, moves stock from the
  * central deposit into transit, and hands the site's coordinator a task.
  *
- * lines: [{ itemId, qty }] — zero-quantity lines are dropped.
+ * `picks` is [{ cadenceId, units }] — a site may ask for several cadences at
+ * once and they travel together in one shipment, each contributing its own
+ * multiple of its own items. It never picks items or per-item quantities: a
+ * cadence is a fixed bundle.
  */
-export function requestShipment(db, { siteId, trialId, cadenceId, lines, userId }) {
+export function requestShipment(db, {
+  siteId, trialId, picks, userId,
+  origin = 'MANUAL', scheduledFrom = null,
+}) {
   const site = db.sites.find((s) => s.id === siteId);
   const siteTrial = getSiteTrial(db, siteId, trialId);
-  const cadence = db.cadences.find((c) => c.id === cadenceId);
-  const wanted = lines.filter((l) => l.qty > 0);
-  // The cadence has to belong to the trial being requested against.
-  if (!site || !siteTrial || !cadence || cadence.trialId !== trialId || !wanted.length) return null;
+  if (!site || !siteTrial) return null;
+
+  const wanted = (picks || [])
+    .map((p) => ({ cadenceId: p.cadenceId, units: Math.round(p.units) }))
+    .filter((p) => p.units > 0);
+  if (!wanted.length) return null;
+
+  // Every pick has to name a cadence of this trial, carry items, and sit inside
+  // that cadence's own ceiling — they are separate allowances, not a shared one.
+  for (const pick of wanted) {
+    const cadence = db.cadences.find((c) => c.id === pick.cadenceId);
+    if (!cadence || cadence.trialId !== trialId || !cadence.itemIds.length) return null;
+    if (pick.units > requestableCadenceUnits(db, siteTrial, cadence)) return null;
+  }
 
   const usesPfi = site.requiresPfiApproval;
   const shipmentId = `ship-${db.shipments.length + 1}-${Date.now().toString(36)}`;
@@ -103,9 +135,11 @@ export function requestShipment(db, { siteId, trialId, cadenceId, lines, userId 
     code: nextShipmentCode(db),
     siteId,
     trialId,
-    cadenceId,
+    cadences: wanted,
+    origin,
+    scheduledFrom,
     status: ST.NEW_REQUEST,
-    lines: wanted.map((l) => ({ itemId: l.itemId, qty: Math.round(l.qty) })),
+    lines: linesFor(db, wanted),
     requestedById: userId,
     createdAt: now(),
     updatedAt: now(),
@@ -142,10 +176,198 @@ export function requestShipment(db, { siteId, trialId, cadenceId, lines, userId 
     shipmentId,
     pfiId,
   });
+  const named = wanted
+    .map((p) => db.cadences.find((c) => c.id === p.cadenceId))
+    .filter(Boolean)
+    .map((c) => c.name)
+    .join(' and ');
   notify(db, siteId, NOTIFICATION_TYPE.SHIPMENT_REQUESTED, shipmentId,
-    `${shipment.code} requested for ${cadence.name} (week ${cadence.week})`);
+    `${shipment.code} requested for ${named}`);
 
   return shipment;
+}
+
+/* ---------- what the site may still change ---------- */
+
+/** A request the site can still resize or drop: nothing has been prepared yet. */
+export const isEditableBySite = (shipment) => !!shipment && shipment.status === ST.NEW_REQUEST;
+
+/** The PFI mirrors the shipment's lines, so it is rebuilt whenever they move. */
+function rebuildPfiLines(db, shipment) {
+  const pfi = getPfi(db, shipment);
+  if (!pfi) return;
+  const previous = new Map(pfi.lines.map((l) => [l.itemId, l]));
+  pfi.lines = shipment.lines.map((l) => {
+    const item = db.items.find((it) => it.id === l.itemId);
+    const before = previous.get(l.itemId);
+    return {
+      itemId: l.itemId,
+      qty: l.qty,
+      // Keep whatever the coordinator has already priced this line at.
+      unitValue: before ? before.unitValue : item.unitValue,
+      hsCode: before ? before.hsCode : item.hsCode,
+    };
+  });
+}
+
+/**
+ * Change how many of the cadence a request is for. Only the difference moves, so
+ * the ledger records the adjustment rather than a fictional return-and-reorder.
+ */
+export function changeShipmentCadences(db, shipmentId, picks, userId) {
+  const shipment = getShipment(db, shipmentId);
+  if (!isEditableBySite(shipment)) return null;
+  const siteTrial = getSiteTrial(db, shipment.siteId, shipment.trialId);
+  if (!siteTrial) return null;
+
+  const wanted = (picks || [])
+    .map((p) => ({ cadenceId: p.cadenceId, units: Math.round(p.units) }))
+    .filter((p) => p.units > 0);
+  if (!wanted.length) return null;
+
+  const before = new Map((shipment.cadences || []).map((c) => [c.cadenceId, c.units]));
+  for (const pick of wanted) {
+    const cadence = db.cadences.find((c) => c.id === pick.cadenceId);
+    if (!cadence || cadence.trialId !== shipment.trialId) return null;
+    // This shipment's own share already counts against the ceiling, so add it
+    // back before asking whether the new number fits.
+    const headroom = requestableCadenceUnits(db, siteTrial, cadence)
+      + (before.get(pick.cadenceId) || 0);
+    if (pick.units > headroom) return null;
+  }
+
+  // Only the difference moves, so the ledger records the adjustment rather than
+  // a fictional return-and-reorder.
+  const nextLines = linesFor(db, wanted);
+  const was = new Map(shipment.lines.map((l) => [l.itemId, l.qty]));
+  const now2 = new Map(nextLines.map((l) => [l.itemId, l.qty]));
+  for (const itemId of new Set([...was.keys(), ...now2.keys()])) {
+    const delta = (now2.get(itemId) || 0) - (was.get(itemId) || 0);
+    if (!delta) continue;
+    move(db, {
+      itemId,
+      from: delta > 0 ? CENTRAL : TRANSIT,
+      to: delta > 0 ? TRANSIT : CENTRAL,
+      qty: Math.abs(delta),
+      shipmentId,
+      reason: delta > 0 ? LEDGER_REASON.REQUEST : LEDGER_REASON.CANCELLATION,
+    });
+  }
+
+  shipment.cadences = wanted;
+  shipment.lines = nextLines;
+  shipment.updatedAt = now();
+  rebuildPfiLines(db, shipment);
+  void userId;
+  return shipment;
+}
+
+/**
+ * Drop a request outright. The stock it reserved goes back to the deposit as its
+ * own ledger move — the ledger is append-only, so a cancellation is recorded
+ * rather than erased, even though the shipment itself stops existing.
+ */
+export function cancelShipment(db, shipmentId, userId) {
+  const shipment = getShipment(db, shipmentId);
+  if (!isEditableBySite(shipment)) return null;
+
+  // A cancelled follow-on has to be remembered, or the reconciler would look for
+  // it, not find it, and helpfully create it again on the very next render.
+  if (shipment.scheduledFrom) {
+    db.declinedSchedules = db.declinedSchedules || [];
+    for (const c of shipment.cadences || []) {
+      db.declinedSchedules.push({
+        scheduledFrom: shipment.scheduledFrom,
+        cadenceId: c.cadenceId,
+        at: now(),
+      });
+    }
+  }
+
+  moveShipment(db, shipment, TRANSIT, CENTRAL, LEDGER_REASON.CANCELLATION);
+  closeTasks(db, shipmentId);
+
+  db.tasks = db.tasks.filter((t) => t.shipmentId !== shipmentId);
+  db.pfis = db.pfis.filter((pfi) => pfi.id !== shipment.pfiId);
+  db.notifications = db.notifications.filter((n) => n.shipmentId !== shipmentId);
+  db.shipments = db.shipments.filter((x) => x.id !== shipmentId);
+  void userId;
+  return shipment;
+}
+
+/* ---------- cadences that follow on ---------- */
+
+/**
+ * Ordering a cadence commits the site to the rest of the trial: every later
+ * cadence follows at the same multiple, appearing once its week comes round.
+ *
+ * Reconciles rather than schedules — it derives what should exist from what does,
+ * so it is safe to run on every render. `scheduledFrom` is what makes a given
+ * (manual order, later cadence) pair produce exactly one shipment, ever.
+ *
+ * Returns how many it created.
+ */
+export function applyScheduledOrders(db) {
+  let created = 0;
+
+  for (const origin of db.shipments.filter((s) => s.origin === 'MANUAL')) {
+    const siteTrial = getSiteTrial(db, origin.siteId, origin.trialId);
+    if (!siteTrial) continue;
+    // An order may cover several cadences. The latest one sets the pace: it is
+    // the furthest through the trial the site has committed to, and its number
+    // is the one the follow-ons inherit.
+    const ordered = (origin.cadences || [])
+      .map((c) => ({ cadence: db.cadences.find((x) => x.id === c.cadenceId), units: c.units }))
+      .filter((c) => c.cadence)
+      .sort((a, b) => a.cadence.week - b.cadence.week);
+    const anchor = ordered.at(-1);
+    if (!anchor) continue;
+    const from = anchor.cadence;
+
+    // The trigger is the gap between the two cadences, counted from the day the
+    // site actually ordered — not from any calendar the site keeps. Order week 5
+    // today and the week-13 cadence follows eight weeks from today, whatever the
+    // site's own position in the trial. A cadence's week is therefore only ever
+    // read as a distance from another cadence.
+    const elapsedWeeks = (Date.now() - new Date(origin.createdAt).getTime()) / (7 * 86400000);
+    const later = db.cadences
+      .filter((c) => c.trialId === origin.trialId
+        && c.week > from.week
+        && c.week - from.week <= elapsedWeeks)
+      .sort((a, b) => a.week - b.week);
+
+    for (const cadence of later) {
+      const exists = db.shipments.some((s) => s.scheduledFrom === origin.id
+        && (s.cadences || []).some((c) => c.cadenceId === cadence.id));
+      if (exists) continue;
+      // The site already turned this one down.
+      const declined = (db.declinedSchedules || []).some((d) => d.scheduledFrom === origin.id
+        && d.cadenceId === cadence.id);
+      if (declined) continue;
+
+      // The ceiling still applies; a follow-on takes whatever room is left.
+      const room = requestableCadenceUnits(db, siteTrial, cadence);
+      const units = Math.min(anchor.units, room);
+      if (units < 1) continue;
+
+      const shipment = requestShipment(db, {
+        siteId: origin.siteId,
+        trialId: origin.trialId,
+        picks: [{ cadenceId: cadence.id, units }],
+        userId: origin.requestedById,
+        origin: 'AUTO',
+        scheduledFrom: origin.id,
+      });
+      if (!shipment) continue;
+
+      created += 1;
+      notify(db, origin.siteId, NOTIFICATION_TYPE.SHIPMENT_SCHEDULED, shipment.id,
+        `${shipment.code} was created for ${cadence.name} (week ${cadence.week}) — `
+        + 'change the quantity or cancel it if you do not need it');
+    }
+  }
+
+  return created;
 }
 
 /** Coordinator sends the PFI to an approver. */

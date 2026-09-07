@@ -2,35 +2,43 @@
 
 import { h, append, fmtInt, fmtAgo, fmtDate, fmtMoney } from '../ui/el.js';
 import { icon } from '../ui/icons.js';
-import { card, actionCard, tile, badge, shipmentBadge, pfiBadge, avatar, timeline } from '../ui/components.js';
 import {
-  getItem, getSite, getTrial, getCadence, userName, unitsIn, pfiValue, trialsForSite,
+  card, actionCard, tile, badge, shipmentBadge, pfiBadge, avatar, timeline,
+  btn, dialog, field, input, select, toast,
+} from '../ui/components.js';
+import * as store from '../store.js';
+import { COUNTRIES } from '../domain/constants.js';
+import {
+  getItem, getSite, getTrial, userName, unitsIn, pfiValue, siteTitle, shipmentCadences,
 } from '../domain/selectors.js';
+import { coordinatorForShipment } from '../domain/workflow.js';
 
 /**
  * One shipment as a full-width clickable row. No icons here: a long list does
- * not repeat the section's own icon on every row, and the shipment's items are
- * summarised by their unit count rather than a row of category icons.
+ * not repeat the section's own icon on every row.
  */
 export function shipmentCard(db, shipment, onOpen, { showSite = false } = {}) {
-  const cadence = getCadence(db, shipment.cadenceId);
   const site = getSite(db, shipment.siteId);
   const trial = getTrial(db, shipment.trialId);
+  const carried = shipmentCadences(db, shipment);
 
+  // Everything that identifies the shipment beyond its own code lives on one
+  // sub-line, in narrowing order: which site, which study, what it carries. The
+  // site's full name is dropped — the code is what people say out loud, and the
+  // name pushed the cadences out of view on a narrow row.
   const sub = [
-    showSite && site ? `${site.code} · ${site.address.city}` : null,
+    showSite && site ? site.code : null,
     trial ? trial.code : null,
-    cadence ? `${cadence.name} · week ${cadence.week}` : null,
-  ].filter(Boolean).join(' · ');
+    // A shipment can carry more than one cadence, each with its own number.
+    carried.map((c) => `${c.cadence.name} \u00d7${c.units}`).join(' + ') || null,
+  ].filter(Boolean).join(' \u00b7 ');
 
   return actionCard({ variant: 'card--tight', onClick: onOpen },
     h('div', { class: 'row-wrap' },
       h('div', { class: 'grow', style: { minWidth: '140px' } },
         h('div', { class: 'strong truncate' }, shipment.code),
         h('div', { class: 'small dim truncate' }, sub)),
-      h('div', { class: 'right small dim nowrap' },
-        h('div', {}, `${fmtInt(unitsIn(shipment))} units`),
-        h('div', {}, fmtAgo(shipment.updatedAt))),
+      h('div', { class: 'right small dim nowrap' }, fmtAgo(shipment.updatedAt)),
       shipmentBadge(shipment.status),
       icon('arrowRight', 17)));
 }
@@ -125,11 +133,15 @@ export function shipmentTimeline(db, shipment) {
       entry.note ? h('div', { class: 'small' }, `“${entry.note}”` ) : null)));
 }
 
-/** Header block for a shipment detail page. */
-export function shipmentHeader(db, shipment, backAction, ...actions) {
+/**
+ * Header block for a shipment detail page. `actions` is an array of buttons;
+ * `showCoordinator` names the deposit person who owns the next step — the back
+ * office needs it here, the front office already gives it its own card.
+ */
+export function shipmentHeader(db, shipment, backAction, actions = [], { showCoordinator = false } = {}) {
   const site = getSite(db, shipment.siteId);
   const trial = getTrial(db, shipment.trialId);
-  const cadence = getCadence(db, shipment.cadenceId);
+  const carried = shipmentCadences(db, shipment);
 
   return card({},
     h('div', { class: 'row-between' },
@@ -139,15 +151,25 @@ export function shipmentHeader(db, shipment, backAction, ...actions) {
         h('div', {},
           h('div', { class: 'page-head__title' }, shipment.code),
           h('div', { class: 'small dim' },
-            `${site ? site.code : ''} · ${site ? site.name : ''}`))),
+            siteTitle(site)))),
       shipmentBadge(shipment.status)),
     h('div', { class: 'kv' },
       h('span', { class: 'kv__k' }, 'Trial'),
       h('span', { class: 'kv__v' }, trial ? `${trial.code} — ${trial.name}` : '—'),
-      h('span', { class: 'kv__k' }, 'Cadence'),
-      h('span', { class: 'kv__v' }, cadence ? `${cadence.name} · week ${cadence.week}` : '—'),
+      h('span', { class: 'kv__k' }, carried.length === 1 ? 'Cadence' : 'Cadences'),
+      h('span', { class: 'kv__v' }, carried.length
+        ? h('div', { class: 'stack-sm' }, ...carried.map((c) => h('div', {},
+          `${c.units} × ${c.cadence.name} · week ${c.cadence.week} `
+          + `(${c.cadence.itemIds.length} item${c.cadence.itemIds.length === 1 ? '' : 's'})`)))
+        : '—'),
       h('span', { class: 'kv__k' }, 'Requested by'),
       h('span', { class: 'kv__v' }, userName(db, shipment.requestedById)),
+      ...(showCoordinator
+        ? [
+          h('span', { class: 'kv__k' }, 'Shipping coordinator'),
+          h('span', { class: 'kv__v' }, userName(db, coordinatorForShipment(db, shipment))),
+        ]
+        : []),
       h('span', { class: 'kv__k' }, 'Requested on'),
       h('span', { class: 'kv__v' }, fmtDate(shipment.createdAt)),
       h('span', { class: 'kv__k' }, 'Total units'),
@@ -155,46 +177,6 @@ export function shipmentHeader(db, shipment, backAction, ...actions) {
     actions.filter(Boolean).length
       ? h('div', { class: 'row-wrap' }, ...actions.filter(Boolean))
       : null);
-}
-
-/**
- * The trial selector for the front office. A site runs any number of trials and
- * almost everything the FO sees — stock, targets, study week, cadences — belongs
- * to one of them, so each view picks a trial and scopes itself to that pair.
- * Sites running a single trial get nothing: there is no choice to offer.
- *
- * Returns `null` when there is nothing to show, so callers can drop it straight
- * into a child list.
- */
-export function trialStrip(db, site, activeTrialId, onPick) {
-  const trials = trialsForSite(db, site.id);
-  if (trials.length < 2) return null;
-  return h('div', { class: 'stack-sm' },
-    h('span', { class: 'card__label' }, 'Trial'),
-    chipStrip(trials.map((t) => ({ value: t.id, label: t.code })), activeTrialId, onPick));
-}
-
-/**
- * Which trial the front office is looking at. One choice shared by every FO
- * view, so picking a trial on the dashboard still holds when you open stock or
- * shipments — the alternative, a selection per view, has the sections silently
- * disagreeing about which study you are working on.
- *
- * Session-only: it is a lens on the data, not part of it, and it falls back to
- * the site's first trial whenever the remembered one does not apply — which is
- * what happens as soon as the user switches site.
- */
-let foTrialId = null;
-
-export function activeTrialId(db, site) {
-  const trials = trialsForSite(db, site.id);
-  if (trials.some((t) => t.id === foTrialId)) return foTrialId;
-  foTrialId = trials[0] ? trials[0].id : null;
-  return foTrialId;
-}
-
-export function setActiveTrialId(trialId) {
-  foTrialId = trialId;
 }
 
 /** Filter chip strip. options: [{ value, label, count }] */
@@ -208,3 +190,56 @@ export function chipStrip(options, active, onPick) {
 }
 
 export { badge, avatar, append };
+
+/**
+ * Correct a site's postal address. Shared by both sides: the deposit maintains
+ * it, and the site itself is the one that actually knows when it changes.
+ */
+export function openAddressDialog(site) {
+  const fields = {
+    street: input({ value: site.address.street, placeholder: 'Street and number' }),
+    postalCode: input({ value: site.address.postalCode, placeholder: '00100' }),
+    city: input({ value: site.address.city, placeholder: 'City' }),
+  };
+  let country = site.address.country;
+  const problem = h('p', { class: 'small' });
+
+  dialog(`Address · ${site.code}`, (close) => h('div', { class: 'stack' },
+    h('p', { class: 'muted small' },
+      'Where shipments for this site are delivered. It appears on the proforma invoice, '
+      + 'so it travels with the goods through customs.'),
+    h('div', { class: 'bento' },
+      h('div', { class: 'col-12' }, field('Street', fields.street)),
+      h('div', { class: 'col-4' }, field('Postcode', fields.postalCode)),
+      h('div', { class: 'col-8' }, field('City', fields.city)),
+      h('div', { class: 'col-6' }, field('Country', select(
+        Object.entries(COUNTRIES).map(([code, label]) => ({ value: code, label })),
+        { value: country, onChange: (e) => { country = e.target.value; } },
+      )))),
+    problem,
+    h('div', { class: 'dialog__foot' },
+      btn('Cancel', { variant: 'ghost', onClick: close }),
+      btn('Save address', {
+        variant: 'primary',
+        onClick: () => {
+          const city = fields.city.value.trim();
+          if (!city) {
+            problem.style.color = 'var(--clay-rose-ink)';
+            problem.textContent = 'Enter the city.';
+            return;
+          }
+          store.update((d) => {
+            const found = d.sites.find((x) => x.id === site.id);
+            if (!found) return;
+            found.address = {
+              street: fields.street.value.trim() || '—',
+              city,
+              country,
+              postalCode: fields.postalCode.value.trim() || '—',
+            };
+          });
+          close();
+          toast(`Address saved for ${site.code}.`);
+        },
+      }))), { narrow: true });
+}

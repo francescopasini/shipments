@@ -196,6 +196,110 @@ export function statusBars(rows) {
   return node;
 }
 
+/**
+ * One panel per state, side by side in the same card: one bar per series inside
+ * each panel.
+ *
+ * The two states used to share a plot, and a run of bars with empty slots in it
+ * read as one continuous row — you could not see where "in stock" ended. They
+ * are separate plots now, but the axis is deliberately *not* per-panel: `max` is
+ * computed across every value, so a bar's height means the same thing in both
+ * and the panels can be read against each other.
+ *
+ * This is the one chart where colour does carry identity, so it is propped up on
+ * every other channel available: each bar is labelled with its value, each bar
+ * carries a tooltip naming its series, and each panel spells itself out in its
+ * aria-label. The tones are also handed out in an order that keeps rose and sage
+ * — the pair that collides under deuteranopia — from appearing together until a
+ * trial has five cadences.
+ *
+ * groups: ['In stock', 'On the way']
+ * series: [{ label, tone, values: [n, n] }]
+ */
+export function groupedBars(groups, series, { height = 220, unit = '' } = {}) {
+  const every = series.flatMap((x) => x.values);
+  const max = niceMax(Math.max(1, ...every));
+
+  const panels = groups.map((group, gi) => panel(group, gi, series, { height, unit, max }));
+
+  const legend = h('div', { class: 'legend' }, ...series.map((one) => h('span', { class: 'legend__item' },
+    h('span', { class: `legend__swatch legend__swatch--${one.tone}` }),
+    h('span', {}, one.label))));
+
+  return h('div', { class: 'stack-sm' }, legend, h('div', { class: 'chart-split' }, ...panels));
+}
+
+/** One state's plot. `max` arrives from the caller so every panel shares an axis. */
+function panel(group, gi, series, { height, unit, max }) {
+  const W = 380;
+  const H = height;
+  const pad = { t: 18, r: 14, b: 34, l: 46 };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+  const y = (v) => pad.t + plotH - (v / max) * plotH;
+
+  // A tenth of the plot each side keeps the bars off the axis and the frame.
+  const barW = Math.min(72, (plotW * 0.8) / Math.max(1, series.length));
+  const startX = pad.l + (plotW - barW * series.length) / 2;
+
+  const svg = s('svg', {
+    viewBox: `0 0 ${W} ${H}`,
+    width: '100%',
+    height,
+    role: 'img',
+    'aria-label': `${group} — `
+      + series.map((x) => `${x.label} ${fmtInt(x.values[gi] || 0)}`).join(', '),
+  });
+
+  for (let i = 0; i <= 4; i += 1) {
+    const value = (max / 4) * i;
+    const yy = y(value);
+    append(svg, [
+      s('line', {
+        x1: pad.l, x2: W - pad.r, y1: yy, y2: yy, stroke: 'var(--line)', 'stroke-width': 1,
+      }),
+      s('text', {
+        x: pad.l - 10, y: yy + 4, 'text-anchor': 'end',
+        fill: 'var(--ink-3)', 'font-size': '11', 'font-weight': '600',
+      }, fmtInt(value)),
+    ]);
+  }
+
+  series.forEach((one, si) => {
+    const value = one.values[gi] || 0;
+    const x = startX + si * barW;
+    const top = y(value);
+    const caption = `${one.label} · ${group}: ${fmtInt(value)}${unit ? ` ${unit}` : ''}`;
+
+    // A zero is drawn as if it were a one: a slot left blank reads as missing
+    // data, and which cadence is at nothing is exactly what this chart is being
+    // consulted about. It sits under its own label, so it cannot be misread as a
+    // real quantity.
+    const top1 = Math.min(top, y(1));
+    append(svg, [s('rect', {
+      x: x + 2, y: top1, width: Math.max(2, barW - 4), height: pad.t + plotH - top1,
+      rx: 4, fill: `var(--clay-${one.tone})`, opacity: value > 0 ? null : '.5',
+    }, s('title', {}, caption))]);
+
+    append(svg, [s('text', {
+      x: x + barW / 2, y: top1 - 5, 'text-anchor': 'middle',
+      fill: value > 0 ? 'var(--ink-2)' : 'var(--ink-3)',
+      'font-size': '11', 'font-weight': '700',
+    }, s('title', {}, caption), fmtInt(value))]);
+  });
+
+  append(svg, [s('text', {
+    x: pad.l + plotW / 2, y: H - 12, 'text-anchor': 'middle',
+    fill: 'var(--ink-2)', 'font-size': '12', 'font-weight': '600',
+  }, group)]);
+
+  return h('div', { class: 'chart' }, svg);
+}
+
+/** The tone for the nth series. Rose trails sage so the pair that collides under
+    deuteranopia only meets once a trial runs five cadences. */
+export const seriesTone = (i) => ['sky', 'butter', 'lilac', 'sage', 'rose'][i % 5];
+
 /** Compact inline trend line for metric cards. */
 export function sparkline(values, tone = 'sky') {
   const W = 120;

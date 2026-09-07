@@ -1,12 +1,13 @@
 // FO site profile — address, the trials running here, and who handles them.
 
 import { h, append } from '../../ui/el.js';
-import { card, tile, avatar, empty, sectionHead, badge } from '../../ui/components.js';
+import { card, tile, btn, avatar, empty, sectionHead, badge } from '../../ui/components.js';
 import * as store from '../../store.js';
 import {
-  getTrial, coordinatorsForSite, userName, siteStudyWeek,
-  cadencesForTrial, countryName, siteTrialsForSite,
+  getTrial, coordinatorsForSite, userName,
+  cadencesForTrial, countryName, siteTrialsForSite, siteTitle, siteWhere,
 } from '../../domain/selectors.js';
+import { openAddressDialog } from '../common.js';
 
 export function render(main) {
   const db = store.getDb();
@@ -20,14 +21,21 @@ export function render(main) {
   const siteTrials = siteTrialsForSite(db, site.id);
 
   append(main, [
-    sectionHead(site.name, `${site.code} · ${site.address.city}, ${countryName(site.address.country)}`),
+    sectionHead(siteTitle(site), siteWhere(site)),
 
     h('div', { class: 'bento' },
       h('div', { class: 'col-5' }, card({},
         h('div', { class: 'row-between' },
           h('div', { class: 'row' }, tile('pin'),
-            h('div', { class: 'card__title' }, 'Address')),
-          badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose')),
+            h('div', {},
+              h('div', { class: 'card__title' }, 'Address'),
+              h('div', { class: 'small dim' }, 'Where your shipments are delivered'))),
+          // The site is the one that knows when its own address changes, so it
+          // keeps it right rather than asking the deposit to.
+          btn('Edit', {
+            variant: 'ghost', size: 'sm', iconName: 'edit',
+            onClick: () => openAddressDialog(site),
+          })),
         h('div', { class: 'kv' },
           h('span', { class: 'kv__k' }, 'Street'),
           h('span', { class: 'kv__v' }, site.address.street),
@@ -36,12 +44,7 @@ export function render(main) {
           h('span', { class: 'kv__k' }, 'Country'),
           h('span', { class: 'kv__v' }, countryName(site.address.country)),
           h('span', { class: 'kv__k' }, 'Site code'),
-          h('span', { class: 'kv__v' }, site.code),
-          // Customs-driven, so it applies to everything leaving the deposit for
-          // this site, whichever study it belongs to.
-          h('span', { class: 'kv__k' }, 'PFI approval'),
-          h('span', { class: 'kv__v' },
-            site.requiresPfiApproval ? 'Required before preparation' : 'Not required')))),
+          h('span', { class: 'kv__v' }, site.code)))),
 
       h('div', { class: 'col-7' }, card({},
         h('div', { class: 'row' }, tile('users'),
@@ -55,8 +58,8 @@ export function render(main) {
             p.id === db.currentUserId ? badge('You', 'sage') : null)))
           : empty('Nobody is assigned to this site.', 'users'))),
 
-      // One card per study running here. Each carries its own study week,
-      // cadences and deposit coordinator.
+      // One card per study running here. Each carries its own cadences and
+      // deposit coordinator.
       ...siteTrials.map((st) => h('div', { class: 'col-6' }, trialCard(db, st))),
 
       siteTrials.length
@@ -70,7 +73,6 @@ export function render(main) {
 function trialCard(db, siteTrial) {
   const trial = getTrial(db, siteTrial.trialId);
   const cadences = cadencesForTrial(db, siteTrial.trialId);
-  const week = siteStudyWeek(siteTrial);
 
   return card({},
     h('div', { class: 'row' }, tile('flask'),
@@ -82,8 +84,6 @@ function trialCard(db, siteTrial) {
       h('span', { class: 'kv__v' }, trial ? trial.name : '—'),
       h('span', { class: 'kv__k' }, 'Phase'),
       h('span', { class: 'kv__v' }, trial ? trial.phase : '—'),
-      h('span', { class: 'kv__k' }, 'Study week'),
-      h('span', { class: 'kv__v' }, `Week ${week}`),
       h('span', { class: 'kv__k' }, 'Deposit coordinator'),
       h('span', { class: 'kv__v' }, userName(db, siteTrial.shippingCoordinatorId))),
     h('hr', { class: 'divider' }),

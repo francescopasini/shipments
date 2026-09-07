@@ -37,7 +37,7 @@ reset always restores the identical world.
 To watch the whole workflow, follow one shipment across personas:
 
 1. As **Elena Rossi** (FO, site S001) → pick **ONC-204** on the trial strip → Shipments →
-   *Request a new shipment*.
+   *Request a new shipment* → choose a cadence and how many of it.
 2. As **Marta Lombardi** (BO, coordinator for S001 · ONC-204) → Tasks → open it →
    *Request PFI approval*.
 3. As **Camille Aubert** (BO, PFI approver) → *Request modification* to send it back, or *Approve PFI*.
@@ -81,9 +81,20 @@ only makes sense for one pairing — the allocation targets, the activation date
 from, and the deposit coordinator who fields that study's requests. Whether a proforma invoice is
 required stays on the site, since it is driven by the site's country and customs.
 
-A site's allocation for a trial is the ceiling on what it may hold for it, so the most it can
-request of an item is `target − held − already in transit`, all three counted for that trial alone.
-The request dialog enforces that cap.
+**A cadence is a fixed bundle, ordered by the multiple.** It names the items that travel together
+and the study week they are expected in — no quantities. A site orders *N of a cadence* and receives
+N of every item in it; it cannot change the composition or set per-item amounts. Each site-trial
+carries one ceiling, `maxCadenceUnits`, the most of any single cadence that site may take over the
+whole trial, and the deposit sets it on the trial page.
+
+**Ordering a cadence commits the site to the rest of the trial.** Every later cadence follows at the
+same multiple, and the site is notified so it can change the number or cancel before the deposit
+picks it up. What triggers a follow-on is the *gap between the two cadences*, counted from the day
+the order was placed: order the week-5 cadence today and the week-13 one appears eight weeks from
+today. A site has no week of its own — a cadence's week is only ever read as a distance from another
+cadence. That reconciliation is derived, not scheduled: it compares
+what should exist against what does on every render, so it is idempotent, and a cancelled follow-on
+is remembered in `declinedSchedules` rather than being helpfully re-created.
 
 ## Layout
 

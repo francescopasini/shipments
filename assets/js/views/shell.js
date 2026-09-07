@@ -3,13 +3,16 @@
 import { h, append, initials } from '../ui/el.js';
 import { icon, iconImg } from '../ui/icons.js';
 import {
-  card, tile, btn, iconBtn, badge, avatar, dialog, confirmDialog, toast, empty,
+  card, tile, btn, badge, avatar, dialog, confirmDialog, toast, empty,
 } from '../ui/components.js';
 import { navigate, currentPath } from '../router.js';
 import * as store from '../store.js';
 import { BO_ROLE_META } from '../domain/constants.js';
-import { openTasksFor, unreadCount, sitesForUser, trialSummary } from '../domain/selectors.js';
+import {
+  openTasksFor, unreadCount, sitesForUser, trialSummary, siteTitle, siteWhere,
+} from '../domain/selectors.js';
 import { FO_SECTIONS, BO_SECTIONS, navSections, profilePath } from './sections.js';
+import { resetSection } from './filters.js';
 
 /** Renders the frame and returns the element the active view mounts into. */
 export function renderShell(root) {
@@ -79,7 +82,10 @@ function navLink(section, path, db, user, side) {
   return h('button', {
     type: 'button',
     class: `nav__link${active ? ' is-active' : ''}`,
-    onClick: () => navigate(section.path),
+    // Reaching a section from the menu shows the whole section. Links that
+    // deliberately narrow it — a site's shipment count, say — set their filter
+    // and navigate directly, bypassing this.
+    onClick: () => { resetSection(section.path); navigate(section.path); },
   },
   navIcon(section.icon),
   h('span', { class: 'grow truncate' }, section.label),
@@ -99,11 +105,11 @@ function siteSwitcher(db, user) {
     onClick: () => openSiteDialog(db, user),
     title: 'Switch site',
   },
-  h('div', { class: 'row' },
+  h('div', { class: 'row site-switch__row' },
     tile('building', 'sm'),
-    h('div', { class: 'grow', style: { minWidth: 0 } },
-      h('div', { class: 'strong truncate' }, site.code),
-      h('div', { class: 'small dim truncate' }, site.address.city)),
+    // One line, wrapping to two — the name is the useful half and truncating it
+    // to "Charité Campus Mi…" told the coordinator nothing they did not know.
+    h('div', { class: 'grow site-switch__name', style: { minWidth: 0 } }, siteTitle(site)),
     options.length > 1 ? icon('swap', 16) : null));
 }
 
@@ -131,7 +137,7 @@ function openSiteDialog(db, user) {
         h('div', { class: 'grow' },
           h('div', { class: 'strong' }, `${site.code} · ${site.name}`),
           h('div', { class: 'small dim' },
-            `${site.address.city}, ${site.address.country} · ${trialSummary(db, site.id)}`)),
+            `${siteWhere(site)} · ${trialSummary(db, site.id)}`)),
         isCurrent ? badge('Current', 'sage') : icon('arrowRight', 17)));
     })), { narrow: true });
 }

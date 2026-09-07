@@ -48,24 +48,30 @@ const CATEGORY_ICON = { IMP: 'vial', KIT: 'kit', ANCILLARY: 'box', LAB: 'flask' 
 const CATEGORY_TONE = { IMP: 'rose', KIT: 'sky', ANCILLARY: 'butter', LAB: 'sage' };
 
 const TRIALS = [
-  { code: 'ONC-204',  name: 'Solid tumours, second line', sponsor: 'Helvara Bio',            phase: 'Phase II',  status: 'Recruiting' },
-  { code: 'CARD-118', name: 'Chronic heart failure',      sponsor: 'Northline Pharma',       phase: 'Phase III', status: 'Recruiting' },
+  { code: 'ONC-204',  name: 'Solid tumours, second line', sponsor: 'Helvara Bio',            phase: 'Phase II',  status: 'Active' },
+  { code: 'CARD-118', name: 'Chronic heart failure',      sponsor: 'Northline Pharma',       phase: 'Phase III', status: 'Active' },
   { code: 'NEU-077',  name: 'First-in-human, early onset', sponsor: 'Auralis Therapeutics',  phase: 'Phase I',   status: 'Active' },
 ];
 
-/** [trialIndex, name, week, [[itemCode, qty], ...]] */
+/**
+ * A cadence is the set of items that travel together, and the study week it is
+ * expected in. It carries no quantities: a site orders N of the cadence and gets
+ * N of every item in it.
+ *
+ * [trialIndex, name, week, [itemCode, ...]]
+ */
 const CADENCES = [
-  [0, 'Start-up supply',     1,  [['KIT-010', 20], ['ANC-002', 20], ['ANC-001', 20]]],
-  [0, 'First dosing wave',   3,  [['IMP-100', 30], ['IMP-200', 10], ['ANC-003', 15]]],
-  [0, 'Mid-study top-up',    20, [['IMP-100', 24], ['KIT-020', 18], ['KIT-040', 12]]],
-  [0, 'Biomarker sub-study', 34, [['KIT-050', 10], ['LAB-060', 4], ['ANC-005', 6]]],
-  [1, 'Site activation pack', 1,  [['KIT-010', 25], ['ANC-002', 25]]],
-  [1, 'Dosing wave 1',        4,  [['IMP-100', 40], ['ANC-004', 20], ['ANC-003', 20]]],
-  [1, 'Quarterly resupply',   16, [['IMP-100', 36], ['KIT-020', 24], ['ANC-001', 24]]],
-  [1, 'Close-out sampling',   40, [['KIT-030', 16], ['LAB-050', 8]]],
-  [2, 'First-in-human start', 2,  [['KIT-010', 12], ['KIT-040', 12], ['ANC-005', 4]]],
-  [2, 'Cohort 2 dosing',      8,  [['IMP-100', 18], ['IMP-200', 6], ['ANC-003', 10]]],
-  [2, 'Cohort 3 dosing',      18, [['IMP-100', 18], ['KIT-040', 10], ['LAB-060', 3]]],
+  [0, 'Start-up supply',      1,  ['KIT-010', 'ANC-002', 'ANC-001']],
+  [0, 'First dosing wave',    3,  ['IMP-100', 'IMP-200', 'ANC-003']],
+  [0, 'Mid-study top-up',     20, ['IMP-100', 'KIT-020', 'KIT-040']],
+  [0, 'Biomarker sub-study',  34, ['KIT-050', 'LAB-060', 'ANC-005']],
+  [1, 'Site activation pack', 1,  ['KIT-010', 'ANC-002']],
+  [1, 'Dosing wave 1',        4,  ['IMP-100', 'ANC-004', 'ANC-003']],
+  [1, 'Quarterly resupply',   16, ['IMP-100', 'KIT-020', 'ANC-001']],
+  [1, 'Close-out sampling',   40, ['KIT-030', 'LAB-050']],
+  [2, 'First-in-human start', 2,  ['KIT-010', 'KIT-040', 'ANC-005']],
+  [2, 'Cohort 2 dosing',      8,  ['IMP-100', 'IMP-200', 'ANC-003']],
+  [2, 'Cohort 3 dosing',      18, ['IMP-100', 'KIT-040', 'LAB-060']],
 ];
 
 /** [code, name, country, city, street, postcode, active, requiresPfi] */
@@ -169,12 +175,12 @@ export function buildSeed() {
 
   // --- trials & cadences ---
   const trials = TRIALS.map((t, i) => ({ id: `trial-${i + 1}`, ...t }));
-  const cadences = CADENCES.map(([ti, name, week, lines], i) => ({
+  const cadences = CADENCES.map(([ti, name, week, codes], i) => ({
     id: `cad-${i + 1}`,
     trialId: trials[ti].id,
     name,
     week,
-    lines: lines.map(([code, qty]) => ({ itemId: itemByCode[code].id, suggestedQty: qty })),
+    itemIds: codes.map((code) => itemByCode[code].id),
   }));
 
   // --- users ---
@@ -197,23 +203,19 @@ export function buildSeed() {
   const siteById = Object.fromEntries(sites.map((s) => [s.id, s]));
 
   // --- site ↔ trial pairings ---
-  // The allocation target for a pair is everything that trial's cadences can ask for.
+  // One ceiling per pairing: how many of any single cadence the site may take
+  // over the whole trial. Set wide enough that the recurring cadences are not
+  // blocked after a couple of orders.
   const siteTrials = SITE_TRIALS.map(([siteCode, ti, activatedDaysAgo, ci], i) => {
     const site = siteByCode[siteCode];
     const trial = trials[ti];
-    const targets = new Map();
-    for (const cad of cadences.filter((c) => c.trialId === trial.id)) {
-      for (const line of cad.lines) {
-        targets.set(line.itemId, (targets.get(line.itemId) || 0) + line.suggestedQty);
-      }
-    }
     return {
       id: `st-${i + 1}`,
       siteId: site.id,
       trialId: trial.id,
       activatedOn: daysAgo(activatedDaysAgo),
+      maxCadenceUnits: between(60, 120),
       shippingCoordinatorId: coordinators[ci % coordinators.length].id,
-      allocations: [...targets].map(([itemId, targetQty]) => ({ itemId, targetQty })),
     };
   });
 
@@ -263,9 +265,22 @@ export function buildSeed() {
     const [ageLo, ageHi] = AGE_BY_STATUS[status];
     const startDay = between(ageLo, ageHi);
 
-    // Order quantities near, but not exactly at, the cadence suggestion.
-    const lines = cadence.lines
-      .map((l) => ({ itemId: l.itemId, qty: Math.max(1, Math.round(l.suggestedQty * (0.6 + rnd() * 0.5))) }));
+    // A site orders a number of each cadence it needs, and gets that many of
+    // every item in them. Most requests are a single cadence; now and then a
+    // site asks for two at once and they travel together, an item carried by
+    // both arriving once for the sum.
+    const alsoPick = rnd() > 0.75
+      ? pick(cadences.filter((c) => c.trialId === trial.id && c.id !== cadence.id))
+      : null;
+    const picks = [{ cadenceId: cadence.id, units: between(2, 6) * 5 }];
+    if (alsoPick) picks.push({ cadenceId: alsoPick.id, units: between(1, 3) * 5 });
+
+    const totals = new Map();
+    for (const p of picks) {
+      const c = cadences.find((x) => x.id === p.cadenceId);
+      for (const itemId of c.itemIds) totals.set(itemId, (totals.get(itemId) || 0) + p.units);
+    }
+    const lines = [...totals].map(([itemId, qty]) => ({ itemId, qty }));
 
     const id = `ship-${shipments.length + 1}`;
     const code = `SHP-${shipmentNo}`;
@@ -334,7 +349,9 @@ export function buildSeed() {
       id, code,
       siteId: site.id,
       trialId: trial.id,
-      cadenceId: cadence.id,
+      cadences: picks,
+      origin: 'MANUAL',
+      scheduledFrom: null,
       status,
       lines,
       requestedById: requester.id,
@@ -397,10 +414,18 @@ export function buildSeed() {
   }
 
   // --- opening central stock, sized against total demand ---
+  // With no per-item targets to sum, demand is read off cadence membership: an
+  // item is wanted once per cadence that carries it, at a typical order size.
+  const TYPICAL_ORDER = 20;
+  const cadencesOf = (trialId) => cadences.filter((c) => c.trialId === trialId);
+  const pairingItems = (st) => [...new Set(cadencesOf(st.trialId).flatMap((c) => c.itemIds))];
+
   const demandByItem = {};
   for (const st of siteTrials) {
-    for (const a of st.allocations) {
-      demandByItem[a.itemId] = (demandByItem[a.itemId] || 0) + a.targetQty;
+    for (const cadence of cadencesOf(st.trialId)) {
+      for (const itemId of cadence.itemIds) {
+        demandByItem[itemId] = (demandByItem[itemId] || 0) + TYPICAL_ORDER;
+      }
     }
   }
   const opening = [];
@@ -436,24 +461,22 @@ export function buildSeed() {
 
   // --- settle each site-trial on a plausible opening position ---
   // Deliveries alone would leave a site holding only the cadences it happened to
-  // receive, so every allocated item is trued up to 35–85% of its target: the
-  // shortfall becomes site-activation stock, the excess becomes consumption.
+  // receive, so every item its trial's cadences cover is trued up to a plausible
+  // holding: the shortfall becomes site-activation stock, the excess consumption.
   const settlement = [];
   for (const st of siteTrials) {
     const location = siteLocation(st.siteId, st.trialId);
-    for (const a of st.allocations) {
+    for (const itemId of pairingItems(st)) {
       const delivered = ledger
-        .filter((l) => l.to === location && l.itemId === a.itemId)
+        .filter((l) => l.to === location && l.itemId === itemId)
         .reduce((sum, l) => sum + l.qty, 0);
-      const desired = siteById[st.siteId].active
-        ? Math.round(a.targetQty * (0.35 + rnd() * 0.5))
-        : 0;
+      const desired = siteById[st.siteId].active ? between(4, 34) : 0;
       const delta = desired - delivered;
       if (!delta) continue;
       settlement.push({
-        id: `led-settle-${st.id}-${a.itemId}`,
+        id: `led-settle-${st.id}-${itemId}`,
         at: daysAgo(delta > 0 ? 89 : between(1, 14)),
-        itemId: a.itemId,
+        itemId,
         from: delta < 0 ? location : null,
         to: delta > 0 ? location : null,
         qty: Math.abs(delta),
@@ -475,6 +498,8 @@ export function buildSeed() {
     currentUserId: foUsers[0].id,
     currentSiteId: foUsers[0].siteIds[0],
     users, trials, cadences, items, sites, siteTrials,
+    // Follow-on cadences the site has turned down, so they are not re-created.
+    declinedSchedules: [],
     shipments, pfis, tasks, notifications,
     stock, stockLedger, depositHistory,
   };

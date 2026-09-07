@@ -1,4 +1,4 @@
-// BO stock — items × locations matrix, filterable by location, country and trial.
+// BO stock — items × locations matrix, filterable by site, country and trial.
 // A site holds stock per trial, so each site contributes one column per study.
 
 import { h, append, fmtInt } from '../../ui/el.js';
@@ -6,9 +6,10 @@ import { card, btn, empty, sectionHead, select, field } from '../../ui/component
 import * as store from '../../store.js';
 import { matrixLocations, balance } from '../../domain/stock.js';
 import { COUNTRIES } from '../../domain/constants.js';
-import { allTrials } from '../../domain/selectors.js';
+import { allTrials, allSites } from '../../domain/selectors.js';
+import { onSection } from '../filters.js';
 
-const DEFAULTS = { location: 'ALL', country: 'ALL', trial: 'ALL', hideEmpty: true };
+const DEFAULTS = { site: 'ALL', country: 'ALL', trial: 'ALL', hideEmpty: true };
 const filters = { ...DEFAULTS };
 
 const isFiltered = () => Object.keys(DEFAULTS).some((k) => filters[k] !== DEFAULTS[k]);
@@ -18,14 +19,20 @@ export function render(main) {
   const db = store.getDb();
   const rerender = () => { main.replaceChildren(); render(main); };
 
-  const columns = matrixLocations(db).filter((loc) => {
-    // The location filter decides which kinds of column appear at all.
-    if (filters.location === 'CENTRAL') return loc.kind === 'central';
-    if (filters.location === 'TRANSIT') return loc.kind === 'transit';
-    if (filters.location === 'SITES' && loc.kind !== 'site') return false;
+  // A site id left over from a deleted site would hide every site column.
+  if (filters.site !== 'ALL' && !db.sites.some((x) => x.id === filters.site)) filters.site = 'ALL';
+  const oneSite = filters.site !== 'ALL';
 
+  const columns = matrixLocations(db).filter((loc) => {
+    // The deposit is always shown: it is what every site column draws from, so a
+    // site's stock only means something read against it.
+    if (loc.kind === 'central') return true;
+    // In transit is a total across every site, so it says nothing once you are
+    // looking at one of them.
+    if (loc.kind === 'transit') return !oneSite;
+
+    if (oneSite && loc.site.id !== filters.site) return false;
     // Country and trial narrow the site columns only.
-    if (loc.kind !== 'site') return true;
     if (filters.country !== 'ALL' && loc.site.address.country !== filters.country) return false;
     if (filters.trial !== 'ALL' && loc.trial.id !== filters.trial) return false;
     return true;
@@ -43,14 +50,12 @@ export function render(main) {
 
     card({ variant: 'card--tight' },
       h('div', { class: 'filters' },
-        h('div', { style: { minWidth: '190px' } }, field('Location', select([
-          { value: 'ALL', label: 'All locations' },
-          { value: 'CENTRAL', label: 'Central deposit only' },
-          { value: 'TRANSIT', label: 'In transit only' },
-          { value: 'SITES', label: 'Sites only' },
+        h('div', { style: { minWidth: '220px' } }, field('Site', select([
+          { value: 'ALL', label: 'All sites' },
+          ...allSites(db).map((x) => ({ value: x.id, label: `${x.code} — ${x.name}` })),
         ], {
-          value: filters.location,
-          onChange: (e) => { filters.location = e.target.value; rerender(); },
+          value: filters.site,
+          onChange: (e) => { filters.site = e.target.value; rerender(); },
         }))),
         h('div', { style: { minWidth: '170px' } }, field('Country', select([
           { value: 'ALL', label: 'All countries' },
@@ -100,27 +105,19 @@ function matrix(db, rows, columns) {
           h('th', { class: 'col-head' }, 'Item'),
           ...columns.map((loc) => h('th', { title: loc.label }, loc.kind === 'site'
             ? loc.short
-            : loc.label)),
-          h('th', {}, 'Total'))),
-      h('tbody', {}, ...rows.map((row) => {
-        const total = row.cells.reduce((sum, qty) => sum + qty, 0);
-        return h('tr', {},
-          h('td', { class: 'col-head' },
-            h('div', {},
-              h('div', {}, row.item.name),
-              h('div', { class: 'small dim' },
-                `${row.item.code}${row.item.coldChain ? ' · cold chain' : ''}`))),
-          ...row.cells.map((qty, i) => {
-            const loc = columns[i];
-            const target = loc.kind === 'site'
-              ? (loc.siteTrial.allocations.find((a) => a.itemId === row.item.id) || {}).targetQty
-              : null;
-            const low = target ? qty < target * 0.5 : false;
-            return h('td', {
-              class: qty === 0 ? 'is-zero' : low ? 'is-low' : '',
-              title: target ? `${qty} of ${target} target` : `${qty} units`,
-            }, qty === 0 ? '—' : fmtInt(qty));
-          }),
-          h('td', { class: 'strong tnum' }, fmtInt(total)));
-      }))));
+            : loc.label)))),
+      h('tbody', {}, ...rows.map((row) => h('tr', {},
+        h('td', { class: 'col-head' },
+          h('div', {},
+            h('div', {}, row.item.name),
+            h('div', { class: 'small dim' },
+              `${row.item.code}${row.item.coldChain ? ' · cold chain' : ''}`))),
+        // There is no per-item target to be low against any more — a site's
+        // ceiling covers a whole cadence — so the cells report the count only.
+        ...row.cells.map((qty, i) => h('td', {
+          class: qty === 0 ? 'is-zero' : '',
+          title: `${columns[i].short || columns[i].label} · ${qty} units`,
+        }, qty === 0 ? '—' : fmtInt(qty))))))));
 }
+
+onSection('/bo/stock', reset);

@@ -8,7 +8,7 @@ import { navigate } from '../router.js';
 import * as store from '../store.js';
 import { BO_ROLE_META } from '../domain/constants.js';
 import {
-  sitesForUser, trialSummary, openTasksFor, getSite, getTrial,
+  sitesForUser, trialSummary, openTasksFor, getSite, getTrial, siteTitle, siteWhere,
 } from '../domain/selectors.js';
 
 export function render(main) {
@@ -58,9 +58,9 @@ export function render(main) {
           },
           h('div', { class: 'row' },
             h('div', { class: 'grow', style: { minWidth: 0 } },
-              h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
+              h('div', { class: 'strong truncate' }, siteTitle(site)),
               h('div', { class: 'small dim truncate' },
-                `${site.address.city} · ${trialSummary(db, site.id)}`)),
+                `${siteWhere(site)} · ${trialSummary(db, site.id)}`)),
             site.id === db.currentSiteId ? badge('Current', 'sage') : null))))))
         : h('div', { class: 'col-12' }, card({},
           h('div', { class: 'row' }, tile('building'),

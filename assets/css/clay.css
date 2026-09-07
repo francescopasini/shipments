@@ -213,7 +213,16 @@
   border-radius: var(--r-pill);
   background: var(--card-sunken);
   padding: 3px;
+  /* An unswitched track is barely a shade off the card it sits on, which left it
+     reading as a status pill rather than a control. The rim gives it an edge so
+     the knob inside is legible as a knob. */
+  box-shadow: inset 0 0 0 1.5px var(--line);
   transition: background .18s;
+}
+.switch:hover .switch__track { box-shadow: inset 0 0 0 1.5px rgba(58, 52, 48, .22); }
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--clay-sky-ink);
+  outline-offset: 2px;
 }
 .switch__knob {
   width: 21px;
@@ -225,6 +234,26 @@
 }
 .switch input:checked + .switch__track { background: var(--clay-sage); }
 .switch input:checked + .switch__track .switch__knob { transform: translateX(19px); }
+
+/* The site switcher gives its name as much width as it can: the artwork sits
+   tight to the card's left edge and the gap to the text is halved, because the
+   thing worth reading is the site, not the icon. */
+.site-switch { padding-left: 8px; }
+.site-switch__row { gap: 5px; }
+.site-switch__name {
+  font: var(--t-strong);
+  /* Two lines, then ellipsis — enough for every seeded name, and a bound so an
+     unusually long one cannot push the navigation down the page. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+  /* Hospital names run to single words longer than the card is wide
+     ("Universitätsklinikum"), which would otherwise leave the first line almost
+     empty and clip the rest. Breaking inside a word is the lesser evil. */
+  overflow-wrap: anywhere;
+}
 
 /* ---------- dialog ---------- */
 
@@ -256,7 +285,12 @@
 .dialog--wide { width: min(1000px, 100%); }
 .dialog--narrow { width: min(460px, 100%); }
 .dialog__title { font: var(--t-title); }
-.dialog__foot { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.dialog__foot {
+  display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
+  /* The actions sit clear of the last card: a submit button crowding the
+     content above it reads as part of that card rather than as the dialog's. */
+  margin-top: 10px;
+}
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: translateY(14px) scale(.97); } }
@@ -330,8 +364,21 @@
   background: var(--card);
   z-index: 2;
 }
+/* A table inside a half-width card. Fixed layout so the label column gives way
+   and truncates rather than pushing the figure beside it off the edge. */
+.table--fit { table-layout: fixed; }
+.table--fit th, .table--fit td { overflow: hidden; }
+/* A two-word heading wraps rather than being clipped by its own column. */
+.table--fit th { white-space: normal; }
 .table tbody tr:last-child td { border-bottom: 0; }
 .table tbody tr:hover td { background: var(--card-sunken); }
+/* Rows that navigate somewhere. The pointer and the focus ring are the only
+   cues a table row gets — it has no button chrome to fall back on. */
+.table tbody tr.is-clickable { cursor: pointer; }
+.table tbody tr.is-clickable:focus-visible {
+  outline: 2px solid var(--clay-sky-ink);
+  outline-offset: -2px;
+}
 .table .col-head {
   text-align: left;
   position: sticky;
@@ -429,7 +476,13 @@
   background: var(--card-sunken);
   min-width: 0;
 }
-.cadence-card.is-picked { background: var(--clay-sky-soft); }
+/* A request can span several cadences, so the highlight has to read as "this
+   one is in the order" at a glance across the whole grid — a tint alone was too
+   quiet to count them by. */
+.cadence-card.is-picked {
+  background: var(--clay-sky-soft);
+  box-shadow: inset 0 0 0 2px var(--clay-sky);
+}
 .cadence-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
@@ -440,9 +493,65 @@
 .legend__key { display: inline-flex; align-items: center; gap: 7px; }
 .legend__swatch { width: 11px; height: 11px; border-radius: 3px; }
 
+/* A label that opens a new section of a dialog needs air above it, or it reads
+   as a caption belonging to the field it follows. Two stacked fields need the
+   same gap for the same reason: the second one's label sits close enough to the
+   first one's box to read as a caption for it. */
+.dialog .card__label,
+.dialog .field + .field { margin-top: 16px; }
+
+/* The items a cadence ships. A single column, ruled between rows, so the bundle
+   reads as a definite list rather than as a caption. */
+.cadence-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.cadence-items li {
+  font: var(--t-small);
+  color: var(--ink-2);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
 /* ---------- charts ---------- */
 
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: var(--t-small); color: var(--ink-2); }
+.legend__item { display: inline-flex; align-items: center; gap: 7px; }
+.legend__swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.legend__swatch--sky { background: var(--clay-sky); }
+.legend__swatch--butter { background: var(--clay-butter); }
+.legend__swatch--lilac { background: var(--clay-lilac); }
+.legend__swatch--sage { background: var(--clay-sage); }
+.legend__swatch--rose { background: var(--clay-rose); }
+
+
+/* A card arrived at from somewhere else says so once, then settles. An outline
+   rather than a shadow, so the clay depth underneath is left alone. */
+@keyframes card-flash {
+  from { outline-color: var(--clay-sky-ink); }
+  to { outline-color: transparent; }
+}
+.card.is-flash {
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  animation: card-flash 1.8s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.is-flash { animation: none; }
+}
+
 .chart { position: relative; width: 100%; }
+
+/* Two states, two plots, one card. The gap is the separation the shared plot
+   could not give: a run of bars with empty slots read as one continuous row. */
+.chart-split { display: flex; gap: 28px; align-items: flex-end; }
+.chart-split > .chart { flex: 1 1 0; min-width: 0; }
+
+@media (max-width: 720px) {
+  .chart-split { flex-direction: column; gap: 8px; }
+}
 
 .chart__tip {
   position: absolute;

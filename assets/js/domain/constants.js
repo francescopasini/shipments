@@ -78,7 +78,7 @@ export const BO_ROLE_META = {
 /**
  * Stock locations. A site holds stock per trial, so its bucket is keyed by both:
  * `site:<siteId>:<trialId>`. Nothing a site holds for one study can be dispensed
- * for another, and allocation targets are per site-trial too.
+ * for another, and a site's cadence limit is per site-trial too.
  */
 export const CENTRAL = 'CENTRAL';
 export const TRANSIT = 'TRANSIT';
@@ -94,6 +94,9 @@ export const LEDGER_REASON = {
   DELIVERY: 'DELIVERY',
   ADJUSTMENT: 'ADJUSTMENT',
   RESTOCK: 'RESTOCK',
+  // A cancelled request returns its stock. The ledger is append-only, so the
+  // original move stays and this reverses it rather than erasing it.
+  CANCELLATION: 'CANCELLATION',
 };
 
 export const NOTIFICATION_TYPE = {
@@ -103,6 +106,7 @@ export const NOTIFICATION_TYPE = {
   SHIPMENT_IN_PREPARATION: 'SHIPMENT_IN_PREPARATION',
   SHIPMENT_SHIPPED: 'SHIPMENT_SHIPPED',
   SHIPMENT_DELIVERED: 'SHIPMENT_DELIVERED',
+  SHIPMENT_SCHEDULED: 'SHIPMENT_SCHEDULED',
   STOCK_LOW: 'STOCK_LOW',
 };
 
@@ -113,6 +117,7 @@ export const NOTIFICATION_META = {
   SHIPMENT_IN_PREPARATION: { icon: 'warehouse', tone: 'lilac' },
   SHIPMENT_SHIPPED:        { icon: 'truck', tone: 'sage' },
   SHIPMENT_DELIVERED:      { icon: 'check', tone: 'sage' },
+  SHIPMENT_SCHEDULED:      { icon: 'calendar', tone: 'sky' },
   STOCK_LOW:               { icon: 'chart', tone: 'rose' },
 };
 

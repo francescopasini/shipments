@@ -3,7 +3,7 @@
 import { h, append, fmtInt, fmtMoney } from '../../ui/el.js';
 import {
   card, tile, btn, iconBtn, empty, dialog, select, field, input, numberInput,
-  textarea, toast, badge,
+  textarea, toast,
 } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
@@ -11,7 +11,10 @@ import {
   getPfi, availableActions, runAction, eligibleApprovers, coordinatorForShipment,
   canEditPfi, updatePfi, pfiIsPrepared,
 } from '../../domain/workflow.js';
-import { getSite, getTrial, getItem, userName, openTasksFor, pfiValue } from '../../domain/selectors.js';
+import {
+  getSite, getTrial, getItem, pfiValue, siteTitle,
+  coordinatorsForSite,
+} from '../../domain/selectors.js';
 import { shipmentHeader, linesTable, pfiPanel, shipmentTimeline } from '../common.js';
 
 export function render(main, params) {
@@ -29,7 +32,6 @@ export function render(main, params) {
   const trial = getTrial(db, shipment.trialId);
   const pfi = getPfi(db, shipment);
   const actions = availableActions(db, shipment, user);
-  const myTask = openTasksFor(db, user.id).find((t) => t.shipmentId === shipment.id);
 
   const back = iconBtn('arrowRight', {
     variant: 'ghost',
@@ -44,24 +46,7 @@ export function render(main, params) {
   }));
 
   append(main, [
-    shipmentHeader(db, shipment, back, ...actionButtons),
-
-    myTask
-      ? card({ variant: 'card--tight card--sunken' },
-        h('div', { class: 'row' },
-          tile('clipboard', 'sm'),
-          h('div', { class: 'grow' },
-            h('div', { class: 'strong' }, 'This shipment is on your task list'),
-            h('div', { class: 'small dim' },
-              'Completing the action above closes the task automatically.')),
-          badge('Open task', 'butter')))
-      : null,
-
-    !actions.length && shipment.status !== 'DELIVERED'
-      ? card({ variant: 'card--tight' },
-        h('p', { class: 'small muted' },
-          whyNoActions(db, shipment, user, site)))
-      : null,
+    shipmentHeader(db, shipment, back, actionButtons, { showCoordinator: true }),
 
     h('div', { class: 'bento' },
       h('div', { class: 'col-7' }, card({},
@@ -72,7 +57,35 @@ export function render(main, params) {
               `${site ? site.name : ''} · ${trial ? trial.code : ''}`))),
         linesTable(db, shipment.lines))),
 
-      h('div', { class: 'col-5' }, shipmentTimeline(db, shipment)),
+      h('div', { class: 'col-5' }, card({},
+        h('div', { class: 'row-between' },
+          h('div', { class: 'row' }, tile('building'),
+            h('div', { class: 'card__title' }, 'Destination')),
+          // The card already names the site, so the way through to it is an
+          // arrow in the header rather than a labelled button under the details.
+          site
+            ? iconBtn('arrowRight', {
+              variant: 'ghost',
+              title: `Open ${site.code}`,
+              'aria-label': `Open ${site.code}`,
+              onClick: () => navigate(`/bo/sites/${site.id}`),
+            })
+            : null),
+        site
+          ? h('div', { class: 'kv' },
+            h('span', { class: 'kv__k' }, 'Site'),
+            h('span', { class: 'kv__v' }, siteTitle(site)),
+            h('span', { class: 'kv__k' }, 'Address'),
+            h('span', { class: 'kv__v' },
+              `${site.address.street}, ${site.address.postalCode} ${site.address.city}, `
+              + site.address.country),
+            // The site's own people, not the deposit's: this card is about where
+            // the goods are going. Who at the deposit owns the next step is said
+            // by the action panel when it is not the person reading.
+            h('span', { class: 'kv__k' }, 'Site coordinator'),
+            h('span', { class: 'kv__v' }, coordinatorsForSite(db, site.id)
+              .map((c) => c.name).join(', ') || '—'))
+          : empty('Site not found.', 'building'))),
 
       // The invoice is the customs paperwork, so it shows on every shipment.
       // Only whether somebody else countersigns it varies by site.
@@ -86,51 +99,9 @@ export function render(main, params) {
         note: pfiNote(db, shipment, site, user, pfi),
       })),
 
-      h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('building'),
-          h('div', { class: 'card__title' }, 'Destination')),
-        site
-          ? h('div', { class: 'kv' },
-            h('span', { class: 'kv__k' }, 'Site'),
-            h('span', { class: 'kv__v' }, `${site.code} — ${site.name}`),
-            h('span', { class: 'kv__k' }, 'Address'),
-            h('span', { class: 'kv__v' },
-              `${site.address.street}, ${site.address.postalCode} ${site.address.city}, `
-              + site.address.country),
-            h('span', { class: 'kv__k' }, 'Coordinator'),
-            h('span', { class: 'kv__v' }, userName(db, coordinatorForShipment(db, shipment))),
-            h('span', { class: 'kv__k' }, 'PFI approval'),
-            h('span', { class: 'kv__v' }, site.requiresPfiApproval
-              ? 'Countersigned by an approver'
-              : 'Issued by the coordinator'))
-          : empty('Site not found.', 'building'),
-        site
-          ? btn('Open site', {
-            variant: 'ghost', size: 'sm',
-            onClick: () => navigate(`/bo/sites/${site.id}`),
-          })
-          : null)),
+      h('div', { class: 'col-5' }, shipmentTimeline(db, shipment)),
     ),
   ]);
-}
-
-/** Explains why the action buttons are absent, so the screen never looks broken. */
-function whyNoActions(db, shipment, user, site) {
-  const pfi = getPfi(db, shipment);
-  if (shipment.status === 'AWAITING_PFI_APPROVAL') {
-    return `This is waiting on ${userName(db, pfi.approverId)} to decide on the PFI. `
-      + 'Switch to that persona to approve it or request a modification.';
-  }
-  // Coordination is per site-trial, so name the study as well as the site —
-  // a colleague may well coordinate the same hospital's other trial.
-  const coordinatorId = coordinatorForShipment(db, shipment);
-  if (coordinatorId && coordinatorId !== user.id) {
-    const trial = getTrial(db, shipment.trialId);
-    return `${userName(db, coordinatorId)} is the shipping coordinator for `
-      + `${site ? site.code : 'this site'}${trial ? ` · ${trial.code}` : ''}, `
-      + 'so the next step belongs to them.';
-  }
-  return 'There is nothing to do on this shipment at the moment.';
 }
 
 /** A line of context under the invoice header: what still has to happen to it. */

@@ -1,7 +1,9 @@
 // Derived reads over the database. Pure functions — no mutation.
 
 import { SHIPMENT_STATUS_ORDER, SHIPMENT_STATUS_META, BO_ROLE, COUNTRIES } from './constants.js';
-import { balance, siteLocation, requestableQty, siteCoverage, totalAtSite } from './stock.js';
+import {
+  balance, siteLocation, totalAtSite, orderedCadenceUnits, requestableCadenceUnits,
+} from './stock.js';
 
 /* ---------- lookups ---------- */
 
@@ -17,6 +19,30 @@ export const userName = (db, id) => (getUser(db, id) || {}).name || 'Unassigned'
 export const itemName = (db, id) => (getItem(db, id) || {}).name || 'Unknown item';
 export const countryName = (code) => COUNTRIES[code] || code;
 
+/**
+ * How a site is named, everywhere. One convention, one implementation: the code
+ * and the name read as the title, the city and country as the line beneath it.
+ * Both take the site or nothing, so callers need no guards.
+ */
+export const siteTitle = (site) => (site ? `${site.code} · ${site.name}` : '—');
+export const siteWhere = (site) => (site
+  ? `${site.address.city}, ${countryName(site.address.country)}`
+  : '');
+
+/**
+ * The cadences a shipment was ordered against, resolved: [{ cadence, units }].
+ * One entry for a plain request, several when a site asked for more than one
+ * cadence at once and they travelled together.
+ */
+export const shipmentCadences = (db, shipment) => (shipment.cadences || [])
+  .map((c) => ({ cadence: getCadence(db, c.cadenceId), units: c.units }))
+  .filter((c) => c.cadence);
+
+/** The items a cadence ships, as item objects, in catalogue order. */
+export const cadenceItems = (db, cadence) => (cadence
+  ? cadence.itemIds.map((id) => getItem(db, id)).filter(Boolean)
+  : []);
+
 export const cadencesForTrial = (db, trialId) => db.cadences
   .filter((c) => c.trialId === trialId)
   .sort((a, b) => a.week - b.week);
@@ -31,8 +57,8 @@ export const allTrials = (db) => byCode(db.trials);
 
 /* A site runs any number of trials, and every trial runs at any number of sites.
    `db.siteTrials` is that join, and it carries everything that only makes sense
-   for one pair: the allocation targets, the activation date the study week is
-   measured from, and the deposit coordinator who fields that study's requests. */
+   for one pair: the cadence limit and the deposit coordinator who fields that
+   study's requests. */
 
 export const getSiteTrial = (db, siteId, trialId) => db.siteTrials
   .find((st) => st.siteId === siteId && st.trialId === trialId) || null;
@@ -122,58 +148,58 @@ export const unreadCount = (db, siteId) => db.notifications
 /* ---------- site metrics ---------- */
 
 /**
- * One site-trial's stock position per allocated item:
- * [{ item, held, target, inbound, requestable, ratio }]
+ * What a site-trial holds, per item: [{ item, held, inbound }].
+ *
+ * There is no target column any more. A site's ceiling is one number covering a
+ * whole cadence, so no per-item allowance exists to compare against — the rows
+ * report the position rather than judging it.
  */
 export function siteStockRows(db, siteTrial) {
   if (!siteTrial) return [];
   const location = siteLocation(siteTrial.siteId, siteTrial.trialId);
-  return siteTrial.allocations
-    .map((a) => {
-      const item = getItem(db, a.itemId);
-      const held = balance(db, location, a.itemId);
-      const inbound = db.shipments
-        .filter((s) => s.siteId === siteTrial.siteId
-          && s.trialId === siteTrial.trialId
-          && s.status !== 'DELIVERED')
+  const open = db.shipments.filter((s) => s.siteId === siteTrial.siteId
+    && s.trialId === siteTrial.trialId
+    && s.status !== 'DELIVERED');
+
+  // Every item the pairing has touched: what it holds, plus anything on its way.
+  const itemIds = new Set([
+    ...Object.keys(db.stock[location] || {}),
+    ...open.flatMap((s) => s.lines.map((l) => l.itemId)),
+  ]);
+
+  return [...itemIds]
+    .map((itemId) => ({
+      item: getItem(db, itemId),
+      held: balance(db, location, itemId),
+      inbound: open
         .flatMap((s) => s.lines)
-        .filter((l) => l.itemId === a.itemId)
-        .reduce((sum, l) => sum + l.qty, 0);
-      return {
-        item,
-        held,
-        inbound,
-        target: a.targetQty,
-        requestable: requestableQty(db, siteTrial, a.itemId),
-        ratio: a.targetQty ? held / a.targetQty : 1,
-      };
-    })
-    .filter((r) => r.item)
-    .sort((a, b) => a.ratio - b.ratio);
+        .filter((l) => l.itemId === itemId)
+        .reduce((sum, l) => sum + l.qty, 0),
+    }))
+    .filter((r) => r.item && (r.held > 0 || r.inbound > 0))
+    .sort((a, b) => a.item.name.localeCompare(b.item.name));
 }
 
-export { siteCoverage, totalAtSite };
+export { totalAtSite, orderedCadenceUnits, requestableCadenceUnits };
 
-/** Mean coverage across every trial a site runs — one number for a list row. */
-export function siteCoverageAll(db, site) {
-  const pairs = siteTrialsForSite(db, site.id);
-  if (!pairs.length) return 1;
-  return pairs.reduce((sum, st) => sum + siteCoverage(db, st), 0) / pairs.length;
-}
+/**
+ * Where one cadence stands at a site, counted in cadences rather than units:
+ * how many are on their way, and how many have landed. What may still be
+ * ordered is `requestableCadenceUnits`, asked at the point of ordering.
+ */
+export function cadencePosition(db, siteTrial, cadence) {
+  const mine = db.shipments.filter((s) => s.siteId === siteTrial.siteId
+    && s.trialId === siteTrial.trialId);
+  // A shipment can carry several cadences, so take this one's share of each.
+  const tally = (match) => mine.filter(match)
+    .flatMap((s) => s.cadences || [])
+    .filter((c) => c.cadenceId === cadence.id)
+    .reduce((sum, c) => sum + (c.units || 0), 0);
 
-/** Weeks elapsed since the site was activated for this trial. */
-export function siteStudyWeek(siteTrial) {
-  if (!siteTrial) return 1;
-  const days = (Date.now() - new Date(siteTrial.activatedOn).getTime()) / 86400000;
-  return Math.max(1, Math.floor(days / 7) + 1);
-}
-
-/** The cadence a site-trial is closest to needing next. */
-export function nextCadenceForSite(db, siteTrial) {
-  if (!siteTrial) return null;
-  const week = siteStudyWeek(siteTrial);
-  const cadences = cadencesForTrial(db, siteTrial.trialId);
-  return cadences.find((c) => c.week >= week) || cadences.at(-1) || null;
+  return {
+    inTransit: tally((s) => s.status !== 'DELIVERED'),
+    onSite: tally((s) => s.status === 'DELIVERED'),
+  };
 }
 
 /* ---------- BO metrics ---------- */
@@ -181,20 +207,3 @@ export function nextCadenceForSite(db, siteTrial) {
 export const shippingCoordinators = (db) => db.users
   .filter((u) => u.role === 'BO' && u.boRoles.includes(BO_ROLE.SHIPPING_COORDINATOR));
 
-/** Items whose central-deposit cover is thin relative to outstanding demand. */
-export function lowDepositItems(db, limit = 5) {
-  const activeSiteIds = new Set(db.sites.filter((s) => s.active).map((s) => s.id));
-  const demand = {};
-  for (const st of db.siteTrials.filter((x) => activeSiteIds.has(x.siteId))) {
-    for (const a of st.allocations) demand[a.itemId] = (demand[a.itemId] || 0) + a.targetQty;
-  }
-  return db.items
-    .map((item) => {
-      const held = balance(db, 'CENTRAL', item.id);
-      const need = demand[item.id] || 0;
-      return { item, held, need, ratio: need ? held / need : 99 };
-    })
-    .filter((r) => r.need > 0)
-    .sort((a, b) => a.ratio - b.ratio)
-    .slice(0, limit);
-}

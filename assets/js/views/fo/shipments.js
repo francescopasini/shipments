@@ -1,22 +1,29 @@
 // FO shipment list + the "request a new shipment" dialog.
 
-import { h, append, fmtInt } from '../../ui/el.js';
+import { h, append } from '../../ui/el.js';
 import {
-  card, btn, empty, sectionHead, dialog, select, numberInput, field, toast,
+  card, btn, empty, sectionHead, select, field,
 } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import { SHIPMENT_STATUS_ORDER, SHIPMENT_STATUS_META } from '../../domain/constants.js';
-import { requestShipment } from '../../domain/workflow.js';
-import { requestableQty } from '../../domain/stock.js';
-import {
-  shipmentsForSite, cadencesForTrial, getItem, getSiteTrial, trialsForSite, siteStudyWeek,
-} from '../../domain/selectors.js';
-import { shipmentCard, chipStrip, trialStrip, activeTrialId, setActiveTrialId } from '../common.js';
+import { shipmentsForSite, trialsForSite } from '../../domain/selectors.js';
+import { shipmentCard } from '../common.js';
+import { openRequestDialog as openShipmentDialog } from '../request-dialog.js';
+import { onSection } from '../filters.js';
 
-// The status filter is view-local so clicking among chips does not need a store
-// write; the trial is shared with every other FO view.
+// Both filters are view-local so clicking among them needs no store write.
+//
+// The trial is a filter here rather than the shared lens the dashboard uses: a
+// site's shipments are one queue whichever study they serve, and hiding half of
+// it by default makes the list lie about how much is in flight. Every row says
+// which trial it belongs to instead.
 let statusFilter = 'ALL';
+let trialFilter = 'ALL';
+// Which trial the request dialog should open on. Not a filter — just the last
+// one ordered against, so raising two requests in a row does not mean picking
+// the same trial twice.
+let lastOrderedTrialId = null;
 
 export function render(main) {
   const db = store.getDb();
@@ -26,50 +33,73 @@ export function render(main) {
     return;
   }
 
-  const trialId = activeTrialId(db, site);
+  const trials = trialsForSite(db, site.id);
+  // A trial the site no longer runs would hide the whole list with no way back.
+  if (trialFilter !== 'ALL' && !trials.some((t) => t.id === trialFilter)) trialFilter = 'ALL';
 
-  const all = shipmentsForSite(db, site.id).filter((s) => s.trialId === trialId);
+  const everything = shipmentsForSite(db, site.id);
+  const all = trialFilter === 'ALL'
+    ? everything
+    : everything.filter((s) => s.trialId === trialFilter);
   const visible = statusFilter === 'ALL' ? all : all.filter((s) => s.status === statusFilter);
 
-  const options = [
-    { value: 'ALL', label: 'All', count: all.length },
+  // No counts in the labels — the page subtitle already says how many are shown
+  // out of how many there are. A status the trial filter has emptied simply
+  // stops being offered, so nothing on the list leads to an empty page.
+  const statusOptions = [
+    { value: 'ALL', label: 'All statuses' },
     ...SHIPMENT_STATUS_ORDER
-      .map((status) => ({
-        value: status,
-        label: SHIPMENT_STATUS_META[status].label,
-        count: all.filter((s) => s.status === status).length,
-      }))
-      .filter((o) => o.count > 0),
+      .filter((status) => all.some((x) => x.status === status))
+      .map((status) => ({ value: status, label: SHIPMENT_STATUS_META[status].label })),
   ];
-
-  const strip = trialStrip(db, site, trialId, (id) => {
-    setActiveTrialId(id);
-    // A status that only existed under the previous trial would show an empty list.
-    statusFilter = 'ALL';
-    rerender(main);
-  });
+  // The chosen status may have vanished with the trial switch.
+  if (!statusOptions.some((o) => o.value === statusFilter)) statusFilter = 'ALL';
 
   append(main, [
-    sectionHead('Shipments', `${site.code} · ${site.address.city}`,
-      btn('Request a new shipment', {
+    sectionHead('Shipments',
+      `${site.code} · ${visible.length} of ${everything.length} shown`,
+      btn('Request a shipment', {
         variant: 'primary', iconName: 'plus',
         onClick: () => openRequestDialog(),
       })),
 
     card({ variant: 'card--tight' },
-      strip,
-      chipStrip(options, statusFilter, (value) => { statusFilter = value; rerender(main); })),
+      h('div', { class: 'filters' },
+        trials.length > 1
+          ? h('div', { style: { minWidth: '220px' } }, field('Trial', select([
+            { value: 'ALL', label: 'All trials' },
+            ...trials.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
+          ], {
+            value: trialFilter,
+            onChange: (e) => {
+              trialFilter = e.target.value;
+              // A status that only existed under the previous trial would show nothing.
+              statusFilter = 'ALL';
+              rerender(main);
+            },
+          })))
+          : null,
+        h('div', { style: { minWidth: '220px' } }, field('Status', select(statusOptions, {
+          value: statusFilter,
+          onChange: (e) => { statusFilter = e.target.value; rerender(main); },
+        }))),
+        (statusFilter !== 'ALL' || trialFilter !== 'ALL')
+          ? btn('Clear filters', {
+            variant: 'ghost', size: 'sm', iconName: 'close',
+            onClick: () => { statusFilter = 'ALL'; trialFilter = 'ALL'; rerender(main); },
+          })
+          : null)),
 
     visible.length
       ? h('div', { class: 'stack-sm' }, ...visible.map((s) => shipmentCard(
         db, s, () => navigate(`/fo/shipments/${s.id}`),
       )))
       : card({}, empty(
-        statusFilter === 'ALL'
-          ? 'This site has not requested anything for this trial yet.'
-          : 'No shipments in that status.',
+        statusFilter === 'ALL' && trialFilter === 'ALL'
+          ? 'This site has not requested anything yet.'
+          : 'No shipments match those filters.',
         'box',
-        btn('Request a new shipment', {
+        btn('Request a shipment', {
           variant: 'primary', onClick: () => openRequestDialog(),
         }),
       )),
@@ -84,161 +114,24 @@ function rerender(main) {
 /* ---------- request dialog ---------- */
 
 /**
- * Mirrors the dialog in the workflow diagram: pick a trial, then set a quantity
- * on one cadence card. The trial decides everything below it — which cadences
- * are offered, and the allocation the quantities are capped against, since a
- * site's stock and targets are held per trial.
+ * Exported, because raising a request is the site's main job and the places that
+ * prompt for it — the dashboard, the stock page — should open it where the user
+ * is standing rather than bouncing them to this list first.
+ *
+ * The site is fixed here: the front office only ever orders for the site it is
+ * switched to. It opens on the trial being filtered, else the last one ordered
+ * against, so raising two requests in a row does not mean picking the same trial
+ * twice.
  */
-function openRequestDialog() {
-  const db = store.getDb();
+export function openRequestDialog() {
   const site = store.currentSite();
-  const user = store.currentUser();
-
-  const trialOptions = trialsForSite(db, site.id);
-  let trialId = activeTrialId(db, site);
-  let pickedCadenceId = null;
-  const quantities = new Map(); // cadenceId -> Map(itemId -> qty)
-
-  const body = h('div', { class: 'stack' });
-
-  dialog('Request a new shipment', (closeFn) => {
-    const foot = h('div', { class: 'dialog__foot' },
-      btn('Cancel', { variant: 'ghost', onClick: () => closeFn() }),
-      btn('Request shipment', {
-        variant: 'primary',
-        iconName: 'truck',
-        onClick: () => submit(closeFn),
-      }));
-    build();
-    return h('div', { class: 'stack' }, body, foot);
-  }, { wide: true });
-
-  function qtyMap(cadenceId) {
-    if (!quantities.has(cadenceId)) quantities.set(cadenceId, new Map());
-    return quantities.get(cadenceId);
-  }
-
-  function build() {
-    body.replaceChildren();
-    const siteTrial = getSiteTrial(db, site.id, trialId);
-    const cadences = cadencesForTrial(db, trialId);
-    const week = siteStudyWeek(siteTrial);
-
-    append(body, [
-      field('Trial', select(
-        trialOptions.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
-        {
-          value: trialId,
-          onChange: (e) => {
-            trialId = e.target.value;
-            // Caps and cadences belong to the trial, so nothing carries over.
-            pickedCadenceId = null;
-            quantities.clear();
-            build();
-          },
-        },
-      ), `This site is in study week ${week} of this trial.`),
-
-      h('span', { class: 'card__label' }, 'Cadence'),
-      h('p', { class: 'small muted' },
-        'Pick a cadence and set how much you need. Quantities are capped at your site '
-        + 'allocation for this trial, minus what you already hold and what is already on its way.'),
-
-      cadences.length
-        ? h('div', { class: 'cadence-grid' },
-          ...cadences.map((cadence) => cadenceCard(cadence, week, siteTrial)))
-        : empty('This trial has no cadences configured.', 'calendar'),
-    ]);
-  }
-
-  function cadenceCard(cadence, week, siteTrial) {
-    const picked = pickedCadenceId === cadence.id;
-    const map = qtyMap(cadence.id);
-
-    const node = h('div', {
-      class: `cadence-card${picked ? ' is-picked' : ''}`,
-    },
-    h('div', { class: 'row-between' },
-      h('div', { class: 'strong' }, cadence.name),
-      h('span', { class: 'badge badge--quiet' },
-        h('span', { class: 'badge__dot' }), `Week ${cadence.week}`)),
-    cadence.week < week
-      ? h('div', { class: 'small dim' }, 'Earlier than your current week')
-      : null);
-
-    for (const line of cadence.lines) {
-      const item = getItem(db, line.itemId);
-      const cap = requestableQty(db, siteTrial, line.itemId);
-      const suggested = Math.min(line.suggestedQty, cap);
-      if (!map.has(line.itemId)) map.set(line.itemId, suggested);
-
-      const input = numberInput({
-        min: 0,
-        max: cap,
-        step: 1,
-        value: map.get(line.itemId),
-        class: 'input--sm',
-        'aria-label': `${item.name} quantity`,
-        // Commit on change/blur only — re-rendering on every keystroke would steal focus.
-        onChange: (e) => {
-          const raw = Math.max(0, Math.round(Number(e.target.value) || 0));
-          const clamped = Math.min(raw, cap);
-          if (clamped !== raw) e.target.value = clamped;
-          map.set(line.itemId, clamped);
-          pickedCadenceId = cadence.id;
-          markPicked();
-        },
-        onFocus: () => { pickedCadenceId = cadence.id; markPicked(); },
-      });
-
-      append(node, [h('div', { class: 'stack-sm' },
-        h('div', { class: 'row' },
-          h('div', { class: 'grow', style: { minWidth: 0 } },
-            h('div', { class: 'small strong', title: item.name }, item.name),
-            h('div', { class: 'small dim' },
-              cap > 0 ? `up to ${fmtInt(cap)} ${item.unit}${cap === 1 ? '' : 's'}` : 'at target — none needed')),
-          h('div', { style: { width: '82px' } }, input)))]);
-    }
-
-    return node;
-  }
-
-  function markPicked() {
-    for (const el of body.querySelectorAll('.cadence-card')) el.classList.remove('is-picked');
-    const cards = [...body.querySelectorAll('.cadence-card')];
-    const cadences = cadencesForTrial(db, trialId);
-    const idx = cadences.findIndex((c) => c.id === pickedCadenceId);
-    if (idx >= 0 && cards[idx]) cards[idx].classList.add('is-picked');
-  }
-
-  function submit(closeFn) {
-    if (!pickedCadenceId) {
-      toast('Set a quantity on one of the cadences first.', 'warn');
-      return;
-    }
-    const map = qtyMap(pickedCadenceId);
-    const lines = [...map].map(([itemId, qty]) => ({ itemId, qty })).filter((l) => l.qty > 0);
-    if (!lines.length) {
-      toast('Every quantity is zero — nothing to request.', 'warn');
-      return;
-    }
-
-    const created = store.update((d) => requestShipment(d, {
-      siteId: site.id,
-      trialId,
-      cadenceId: pickedCadenceId,
-      lines,
-      userId: user.id,
-    }));
-
-    closeFn();
-    if (created) {
-      // Land the list on the trial the request was raised against.
-      setActiveTrialId(trialId);
-      toast(`${created.code} requested — the shipping coordinator has been notified.`);
-      navigate(`/fo/shipments/${created.id}`);
-    } else {
-      toast('That request could not be created.', 'warn');
-    }
-  }
+  if (!site) return;
+  openShipmentDialog({
+    siteId: site.id,
+    trialId: trialFilter !== 'ALL' ? trialFilter : lastOrderedTrialId,
+    detailPath: (id) => `/fo/shipments/${id}`,
+    onCreated: (orderedTrialId) => { lastOrderedTrialId = orderedTrialId; },
+  });
 }
+
+onSection('/fo/shipments', () => { statusFilter = 'ALL'; trialFilter = 'ALL'; });

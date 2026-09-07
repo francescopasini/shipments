@@ -116,27 +116,30 @@ export function inboundToSite(db, siteId, trialId, itemId) {
 }
 
 /**
- * The most a site may still request of an item for one trial: that site-trial's
- * allocation target, less what it already holds and what is already on its way.
+ * How much of one cadence a site has ordered for a trial, over the whole trial.
+ * A shipment may carry several cadences at once, so this sums that cadence's
+ * share wherever it appears. Cancelled requests are removed from `shipments`,
+ * so they stop counting here.
  */
-export function requestableQty(db, siteTrial, itemId) {
-  if (!siteTrial) return 0;
-  const allocation = siteTrial.allocations.find((a) => a.itemId === itemId);
-  if (!allocation) return 0;
-  const held = balance(db, siteLocation(siteTrial.siteId, siteTrial.trialId), itemId);
-  const inbound = inboundToSite(db, siteTrial.siteId, siteTrial.trialId, itemId);
-  return Math.max(0, allocation.targetQty - held - inbound);
+export function orderedCadenceUnits(db, siteId, trialId, cadenceId) {
+  return db.shipments
+    .filter((s) => s.siteId === siteId && s.trialId === trialId)
+    .flatMap((s) => s.cadences || [])
+    .filter((c) => c.cadenceId === cadenceId)
+    .reduce((sum, c) => sum + (c.units || 0), 0);
 }
 
-/** Coverage of one site-trial against its allocation targets, 0–1. */
-export function siteCoverage(db, siteTrial) {
-  if (!siteTrial || !siteTrial.allocations.length) return 1;
-  const location = siteLocation(siteTrial.siteId, siteTrial.trialId);
-  const parts = siteTrial.allocations.map((a) => {
-    const held = balance(db, location, a.itemId);
-    return a.targetQty ? Math.min(1, held / a.targetQty) : 1;
-  });
-  return parts.reduce((sum, p) => sum + p, 0) / parts.length;
+/**
+ * The most of `cadence` a site may still order. The pairing carries a single
+ * ceiling — how many of any one cadence it may take over the trial — because a
+ * cadence ships the same number of every item in it, so a per-item allowance
+ * would have nothing extra to say.
+ */
+export function requestableCadenceUnits(db, siteTrial, cadence) {
+  if (!siteTrial || !cadence) return 0;
+  const cap = siteTrial.maxCadenceUnits || 0;
+  const already = orderedCadenceUnits(db, siteTrial.siteId, siteTrial.trialId, cadence.id);
+  return Math.max(0, cap - already);
 }
 
 export const ledgerFor = (db, shipmentId) => db.stockLedger.filter((l) => l.shipmentId === shipmentId);

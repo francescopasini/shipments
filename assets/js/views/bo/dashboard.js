@@ -1,35 +1,21 @@
-// BO home — bento analytics across every shipment plus the central deposit.
+// BO home — how the deposit's shipments are distributed across the workflow.
 
-import { h, append, fmtInt } from '../../ui/el.js';
-import { card, tile, btn, metric, meter, empty, sectionHead } from '../../ui/components.js';
-import { areaChart, statusBars } from '../../ui/charts.js';
+import { h, append } from '../../ui/el.js';
+import { card, tile, btn, sectionHead } from '../../ui/components.js';
+import { statusBars } from '../../ui/charts.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
-import { CENTRAL, TRANSIT, totalAt } from '../../domain/stock.js';
-import {
-  allShipments, openShipments, statusBreakdown, unitsIn, openTasksFor,
-  lowDepositItems,
-} from '../../domain/selectors.js';
-import { shipmentCard } from '../common.js';
+import { allShipments, statusBreakdown, openTasksFor } from '../../domain/selectors.js';
+import { showStatus } from './shipments.js';
 
 export function render(main) {
   const db = store.getDb();
   const user = store.currentUser();
-
   const shipments = allShipments(db);
-  const open = openShipments(db);
-  const inTransit = totalAt(db, TRANSIT);
-  const central = totalAt(db, CENTRAL);
   const myTasks = openTasksFor(db, user.id);
-  const lowItems = lowDepositItems(db, 4);
-  const activeSites = db.sites.filter((s) => s.active).length;
-
-  // A shipment awaiting PFI approval is the one state where the deposit is blocked.
-  const awaiting = open.filter((s) => s.status === 'AWAITING_PFI_APPROVAL');
 
   append(main, [
-    sectionHead('Deposit overview',
-      `${activeSites} active sites · ${db.trials.length} trials`,
+    sectionHead('Dashboard', null,
       btn('My tasks', {
         variant: myTasks.length ? 'primary' : 'ghost',
         iconName: 'clipboard',
@@ -37,84 +23,30 @@ export function render(main) {
       })),
 
     h('div', { class: 'bento' },
-      h('div', { class: 'col-3' }, metric(
-        fmtInt(open.length), 'Shipments in flight',
-        `${fmtInt(shipments.length)} raised in total`, 'box',
-      )),
-      h('div', { class: 'col-3' }, metric(
-        fmtInt(myTasks.length), 'Tasks assigned to you',
-        myTasks.length ? 'Waiting on your action' : 'Nothing outstanding', 'clipboard',
-      )),
-      h('div', { class: 'col-3' }, metric(
-        fmtInt(central), 'Units in the deposit',
-        'Across every catalogue item', 'warehouse',
-      )),
-      h('div', { class: 'col-3' }, metric(
-        fmtInt(inTransit), 'Units in transit',
-        `${fmtInt(open.reduce((s, x) => s + unitsIn(x), 0))} committed`, 'truck', 'lilac',
-      )),
-
-      // --- the deposit stock trend ---
-      h('div', { class: 'col-8' }, card({},
+      h('div', { class: 'col-12' }, card({},
         h('div', { class: 'row-between' },
           h('div', { class: 'row' },
-            tile('chart'),
+            // The section's own icon: the card is a way into the shipment list,
+            // so it wears the same mark the list does.
+            tile('box'),
             h('div', {},
-              h('div', { class: 'card__title' }, 'Central deposit stock over time'),
-              h('div', { class: 'small dim' }, 'Total units held, last 90 days'))),
-          h('div', { class: 'right' },
-            h('div', { class: 'card__metric' }, fmtInt(central)),
-            h('div', { class: 'small dim' }, 'units today'))),
-        areaChart(db.depositHistory))),
-
-      h('div', { class: 'col-4' }, card({},
-        h('div', { class: 'row' },
-          tile('chart'),
-          h('div', {},
-            h('div', { class: 'card__title' }, 'Shipments by status'),
-            h('div', { class: 'small dim' }, 'Every site, every trial'))),
+              h('div', { class: 'card__title' }, 'Shipments by status'),
+              h('div', { class: 'small dim' }, 'Every site, every trial'))),
+          // The bars each open one status, so the button beside them has to say
+          // that it opens all of them — an unlabelled arrow would read as "open
+          // whatever is selected".
+          btn('All shipments', {
+            variant: 'ghost', size: 'sm', iconName: 'arrowRight',
+            onClick: () => { showStatus('ALL'); navigate('/bo/shipments'); },
+          })),
+        // Every bar opens the list on exactly what it counted: the breakdown is a
+        // way into the shipments, not a number to look at and leave.
         statusBars(statusBreakdown(shipments).map((s) => ({
           label: s.label,
           value: s.value,
           tone: s.tone,
-          onClick: () => navigate('/bo/shipments'),
+          onClick: () => { showStatus(s.status); navigate('/bo/shipments'); },
         }))))),
-
-      // --- thin cover in the deposit ---
-      h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' },
-          tile('warehouse'),
-          h('div', {},
-            h('div', { class: 'card__title' }, 'Thinnest cover'),
-            h('div', { class: 'small dim' }, 'Deposit stock against total site allocation'))),
-        lowItems.length
-          ? h('div', { class: 'stack-sm' }, ...lowItems.map((r) => h('div', { class: 'stack-sm' },
-            h('div', { class: 'row-between' },
-              h('span', { class: 'small truncate' }, r.item.name),
-              h('span', { class: 'small strong tnum nowrap' },
-                `${fmtInt(r.held)} / ${fmtInt(r.need)}`)),
-            meter(Math.min(1, r.ratio)))))
-          : empty('Every item has comfortable cover.', 'check'),
-        btn('Open the stock matrix', {
-          variant: 'ghost', size: 'sm', onClick: () => navigate('/bo/stock'),
-        }))),
-
-      // --- blocked on approval ---
-      h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row-between' },
-          h('div', { class: 'row' },
-            tile('seal'),
-            h('div', {},
-              h('div', { class: 'card__title' }, 'Waiting on PFI approval'),
-              h('div', { class: 'small dim' }, 'These cannot move until an approver decides'))),
-          btn('All shipments', {
-            variant: 'ghost', size: 'sm', onClick: () => navigate('/bo/shipments'),
-          })),
-        awaiting.length
-          ? h('div', { class: 'stack-sm' }, ...awaiting.slice(0, 3).map((s) => shipmentCard(
-            db, s, () => navigate(`/bo/shipments/${s.id}`), { showSite: true },
-          )))
-          : empty('Nothing is blocked on an approval right now.', 'check'))),
     ),
   ]);
 }

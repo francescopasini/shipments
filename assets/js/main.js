@@ -4,6 +4,7 @@ import * as store from './store.js';
 import { define, start, resolve, navigate, currentPath } from './router.js';
 import { renderShell, notFound } from './views/shell.js';
 import { closeDialog } from './ui/components.js';
+import { applyScheduledOrders } from './domain/workflow.js';
 
 import * as foDashboard from './views/fo/dashboard.js';
 import * as foShipments from './views/fo/shipments.js';
@@ -58,6 +59,12 @@ let lastPath = null;
 function draw() {
   const user = store.currentUser();
   if (!user) { store.reset(); return; }
+
+  // Cadences ordered manually pull the trial's later cadences along behind them.
+  // This reconciles what should exist against what does, so it is idempotent and
+  // safe to run on every pass — and `updateQuiet` writes without emitting, so a
+  // reconciliation cannot trigger the re-render that would call it again.
+  store.updateQuiet(applyScheduledOrders);
 
   const path = currentPath();
   if (path === '/' || path === '') {

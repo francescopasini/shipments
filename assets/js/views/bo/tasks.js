@@ -1,12 +1,12 @@
 // BO task list — shipment preparation and PFI approval requests for this user.
 
-import { h, append, fmtAgo, fmtInt } from '../../ui/el.js';
+import { h, append, fmtAgo } from '../../ui/el.js';
 import { icon } from '../../ui/icons.js';
 import { card, btn, empty, sectionHead, shipmentBadge } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import { TASK_TYPE_META } from '../../domain/constants.js';
-import { openTasksFor, doneTasksFor, getSite, getTrial, unitsIn } from '../../domain/selectors.js';
+import { openTasksFor, doneTasksFor } from '../../domain/selectors.js';
 import { chipStrip } from '../common.js';
 
 let scope = 'OPEN';
@@ -44,8 +44,6 @@ export function render(main) {
 function taskCard(db, task) {
   const shipment = db.shipments.find((s) => s.id === task.shipmentId);
   if (!shipment) return null;
-  const site = getSite(db, shipment.siteId);
-  const trial = getTrial(db, shipment.trialId);
   const meta = TASK_TYPE_META[task.type] || { label: task.type };
   const isDone = task.status === 'DONE';
 
@@ -57,12 +55,11 @@ function taskCard(db, task) {
   h('div', { class: 'row' },
     h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'strong truncate' }, meta.label),
-      h('div', { class: 'small dim truncate' },
-        `${shipment.code} · ${site ? site.code : ''} ${site ? site.address.city : ''}`
-        + `${trial ? ` · ${trial.code}` : ''}`)),
+      // The shipment code alone: the row is a way into that shipment, and its
+      // own page carries the site, the trial and everything else.
+      h('div', { class: 'small dim truncate' }, shipment.code)),
     h('div', { class: 'right small dim nowrap' },
-      h('div', {}, `${fmtInt(unitsIn(shipment))} units`),
-      h('div', {}, isDone ? `done ${fmtAgo(task.doneAt)}` : fmtAgo(task.createdAt))),
+      isDone ? `done ${fmtAgo(task.doneAt)}` : fmtAgo(task.createdAt)),
     shipmentBadge(shipment.status),
     icon('arrowRight', 17)));
 }

@@ -66,6 +66,41 @@ const IMG = {
   lock: 'warehouse-reception-desk',
 };
 
+/**
+ * How much of its own frame each drawing actually covers, measured off the alpha
+ * channel. The pack is not consistent about this — it ranges from 0.47 to 0.90 —
+ * so tiles built at one box size came out looking randomly scaled: the reception
+ * desk read as small next to the signpost purely because it is drawn smaller
+ * inside an identical square.
+ *
+ * Scaling each drawing to the same share of its box makes them optically equal.
+ * The transform does not touch layout, so every tile keeps its exact footprint.
+ */
+const FILL = {
+  'conveyor-belt-packages': 0.833,
+  'customer-support-center': 0.528,
+  'delivery-checklist-package': 0.681,
+  'delivery-truck-cargo': 0.639,
+  'direction-signpost-route': 0.604,
+  'distribution-center-building': 0.75,
+  'fulfillment-center-warehouse': 0.896,
+  'global-shipping-network': 0.549,
+  'order-processing-center': 0.597,
+  'package-handling-worker': 0.667,
+  'package-inspection-checklist': 0.576,
+  'shipment-tracking-search': 0.465,
+  'small-warehouse-storage': 0.646,
+  'storage-container-box': 0.722,
+  'supply-chain-partnership': 0.688,
+  'warehouse-reception-desk': 0.493,
+  'wooden-pallet-shipping': 0.632,
+};
+
+/** The share of the box the artwork should occupy, chosen near the pack's median. */
+const TARGET_FILL = 0.68;
+
+const fillScale = (file) => (FILL[file] ? TARGET_FILL / FILL[file] : 1);
+
 /** An <img> for `name` at `size` px, or null when the pack has no such icon. */
 export function iconImg(name, size = 46) {
   const file = IMG[name];
@@ -77,6 +112,8 @@ export function iconImg(name, size = 46) {
   img.alt = '';
   img.loading = 'lazy';
   img.decoding = 'async';
+  const scale = fillScale(file);
+  if (scale !== 1) img.style.transform = `scale(${scale.toFixed(3)})`;
   return img;
 }
 

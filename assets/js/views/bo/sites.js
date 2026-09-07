@@ -1,39 +1,32 @@
 // BO sites — list, detail and the add-a-site form.
 //
 // A site runs any number of trials. Everything that only makes sense for one
-// study — allocation targets, the activation date the study week runs from, and
-// the deposit coordinator who fields its requests — lives on the site-trial
-// pairing, so the detail page is one section per trial.
+// study — the cadence limit and the deposit coordinator who fields its
+// requests — lives on the site-trial
+// pairing; the detail page lists those pairings and links out to each trial.
 
-import { h, append, fmtInt, fmtDate } from '../../ui/el.js';
+import { h, append, fmtInt } from '../../ui/el.js';
 import { icon } from '../../ui/icons.js';
 import {
-  card, tile, btn, iconBtn, badge, avatar, meter, empty, sectionHead,
-  select, field, input, numberInput, toggle, toast, dialog, confirmDialog,
+  card, actionCard, tile, btn, iconBtn, badge, avatar, empty, sectionHead,
+  select, field, input, toggle, toast, dialog,
 } from '../../ui/components.js';
 import { navigate } from '../../router.js';
 import * as store from '../../store.js';
 import { COUNTRIES } from '../../domain/constants.js';
-import { totalAtSite } from '../../domain/stock.js';
 import {
-  getTrial, coordinatorsForSite, userName, shippingCoordinators, allTrials, byCode,
-  siteStockRows, shipmentsForSite, cadencesForTrial, countryName,
-  siteTrialsForSite, trialsForSite, trialSummary, siteStudyWeek,
+  coordinatorsForSite, shippingCoordinators, allTrials, byCode,
+  shipmentsForSite, countryName, siteTitle, siteWhere,
+  siteTrialsForSite, trialsForSite, trialSummary,
 } from '../../domain/selectors.js';
-import { shipmentCard, chipStrip } from '../common.js';
+import { chipStrip, openAddressDialog } from '../common.js';
+// Imported for their filter setters, so a count here opens the same set there.
+import * as boTrials from './trials.js';
+import * as boShipments from './shipments.js';
+import { onSection } from '../filters.js';
 
-const filters = { scope: 'ACTIVE', trial: 'ALL' };
-
-/** The allocation targets a trial's cadences imply — what a new pairing starts from. */
-function targetsFromCadences(db, trialId) {
-  const targets = new Map();
-  for (const cadence of cadencesForTrial(db, trialId)) {
-    for (const line of cadence.lines) {
-      targets.set(line.itemId, (targets.get(line.itemId) || 0) + line.suggestedQty);
-    }
-  }
-  return [...targets].map(([itemId, targetQty]) => ({ itemId, targetQty }));
-}
+const DEFAULTS = { scope: 'ACTIVE', trial: 'ALL' };
+const filters = { ...DEFAULTS };
 
 /* ---------- list ---------- */
 
@@ -89,9 +82,8 @@ function siteCard(db, site) {
   },
   h('div', { class: 'row-wrap' },
     h('div', { class: 'grow', style: { minWidth: '160px' } },
-      h('div', { class: 'strong truncate' }, `${site.code} · ${site.name}`),
-      h('div', { class: 'small dim truncate' },
-        `${site.address.city}, ${countryName(site.address.country)}`)),
+      h('div', { class: 'strong truncate' }, siteTitle(site)),
+      h('div', { class: 'small dim truncate' }, siteWhere(site))),
     h('div', { class: 'small dim right nowrap' },
       h('div', { class: 'truncate' },
         `${trials.length} trial${trials.length === 1 ? '' : 's'} · ${trialSummary(db, site.id)}`),
@@ -115,7 +107,6 @@ export function renderDetail(main, params) {
   const peers = coordinatorsForSite(db, site.id);
   const siteTrials = siteTrialsForSite(db, site.id);
   const shipments = shipmentsForSite(db, site.id);
-  const unassigned = allTrials(db).filter((t) => !siteTrials.some((st) => st.trialId === t.id));
 
   const back = iconBtn('arrowRight', {
     variant: 'ghost', class: 'flip', 'aria-label': 'Back to sites',
@@ -129,50 +120,68 @@ export function renderDetail(main, params) {
           back,
           tile('building'),
           h('div', {},
-            h('div', { class: 'page-head__title' }, `${site.code} · ${site.name}`),
-            h('div', { class: 'small dim' },
-              `${site.address.city}, ${countryName(site.address.country)}`))),
-        badge(site.active ? 'Active' : 'Inactive', site.active ? 'sage' : 'rose')),
-      h('div', { class: 'row-wrap' },
-        toggle('Site is active', site.active, (checked) => {
-          store.update((d) => {
-            const found = d.sites.find((s) => s.id === site.id);
-            if (found) found.active = checked;
-          });
-          toast(`${site.code} marked ${checked ? 'active' : 'inactive'}.`, 'info');
-        }),
-        // Whether a proforma invoice is needed is customs-driven, so it applies
-        // to every study shipping to this site.
-        toggle('Requires PFI approval', site.requiresPfiApproval, (checked) => {
-          store.update((d) => {
-            const found = d.sites.find((s) => s.id === site.id);
-            if (found) found.requiresPfiApproval = checked;
-          });
-          toast(`PFI approval ${checked ? 'now required' : 'no longer required'} for ${site.code}.`, 'info');
+            h('div', { class: 'page-head__title' }, siteTitle(site)),
+            h('div', { class: 'small dim' }, siteWhere(site)))),
+        // The name is part of the title, so it is corrected from the title. The
+        // active/inactive state already shows on the Settings card below.
+        btn('Edit', {
+          variant: 'ghost', size: 'sm', iconName: 'edit',
+          'aria-label': `Edit the name of ${site.code}`,
+          onClick: () => openNameDialog(site),
         }))),
 
     h('div', { class: 'bento' },
-      h('div', { class: 'col-5' }, card({},
-        h('div', { class: 'row' }, tile('pin'),
-          h('div', { class: 'card__title' }, 'Address')),
+      // A compact statement of what this site is, matching the address card
+      // beside it. The switches themselves live behind Edit.
+      h('div', { class: 'col-6' }, card({},
+        h('div', { class: 'row-between' },
+          h('div', { class: 'row' }, tile('lock'),
+            h('div', {},
+              h('div', { class: 'card__title' }, 'Settings'),
+              h('div', { class: 'small dim' }, 'Applies to every trial here'))),
+          btn('Edit', {
+            variant: 'ghost', size: 'sm', iconName: 'edit',
+            onClick: () => openSettingsDialog(site),
+          })),
+        h('div', { class: 'kv' },
+          h('span', { class: 'kv__k' }, 'Status'),
+          h('span', { class: 'kv__v' }, badge(site.active ? 'Active' : 'Inactive',
+            site.active ? 'sage' : 'rose')),
+          // Active/Inactive is a status and keeps its badge; whether an approver
+          // countersigns is a setting, so it reads as plain text.
+          h('span', { class: 'kv__k' }, 'PFI approval'),
+          h('span', { class: 'kv__v' },
+            site.requiresPfiApproval ? 'Required' : 'Not required'))),
+      ),
+
+      h('div', { class: 'col-6' }, card({},
+        h('div', { class: 'row-between' },
+          h('div', { class: 'row' }, tile('pin'),
+            h('div', {},
+              h('div', { class: 'card__title' }, 'Address'),
+              h('div', { class: 'small dim' }, 'Where shipments are delivered'))),
+          btn('Edit', {
+            variant: 'ghost', size: 'sm', iconName: 'edit',
+            onClick: () => openAddressDialog(site),
+          })),
         h('div', { class: 'kv' },
           h('span', { class: 'kv__k' }, 'Street'),
           h('span', { class: 'kv__v' }, site.address.street),
           h('span', { class: 'kv__k' }, 'City'),
           h('span', { class: 'kv__v' }, `${site.address.postalCode} ${site.address.city}`),
           h('span', { class: 'kv__k' }, 'Country'),
-          h('span', { class: 'kv__v' }, countryName(site.address.country)),
-          h('span', { class: 'kv__k' }, 'Trials'),
-          h('span', { class: 'kv__v' }, trialSummary(db, site.id)),
-          h('span', { class: 'kv__k' }, 'Stock on site'),
-          h('span', { class: 'kv__v tnum' }, `${fmtInt(totalAtSite(db, site.id))} units`)))),
+          h('span', { class: 'kv__v' }, countryName(site.address.country))))),
 
-      h('div', { class: 'col-7' }, card({},
-        h('div', { class: 'row' }, tile('users'),
-          h('div', { class: 'card__title' }, 'Site coordinators')),
-        h('p', { class: 'small dim' },
-          'Front-office users with access to this site. Deposit coordinators are assigned '
-          + 'per trial, below.'),
+      h('div', { class: 'col-12' }, card({},
+        h('div', { class: 'row-between' },
+          h('div', { class: 'row' }, tile('users'),
+            h('div', {},
+              h('div', { class: 'card__title' }, 'Site coordinators'),
+              h('div', { class: 'small dim' }, 'Can request shipments for this site'))),
+          btn('Edit', {
+            variant: 'ghost', size: 'sm', iconName: 'edit',
+            onClick: () => openCoordinatorsDialog(site),
+          })),
         peers.length
           ? h('div', { class: 'stack-sm' }, ...peers.map((p) => h('div', { class: 'row' },
             avatar(p.name),
@@ -183,228 +192,149 @@ export function renderDetail(main, params) {
               `${p.siteIds.length} site${p.siteIds.length === 1 ? '' : 's'}`))))
           : empty('No front-office coordinators assigned.', 'users'))),
 
-      h('div', { class: 'col-12' }, card({ variant: 'card--tight' },
-        h('div', { class: 'row-between' },
-          h('div', { class: 'row' }, tile('flask'),
-            h('div', {},
-              h('div', { class: 'card__title' }, `Trials at this site · ${siteTrials.length}`),
-              h('div', { class: 'small dim' },
-                'Each has its own targets, stock, coordinator and study week'))),
-          btn('Add a trial', {
-            variant: 'primary', size: 'sm', iconName: 'plus',
-            disabled: !unassigned.length,
-            onClick: () => openAddTrialDialog(site, unassigned),
-          })))),
+      // Two matching counts. Neither repeats what its own section already shows
+      // well — they say how much there is and hand you over to it, filtered.
+      h('div', { class: 'col-6' }, recapCard({
+        icon: 'flask',
+        label: 'Trials',
+        count: siteTrials.length,
+        sub: 'Studies running at this site',
+        onOpen: () => { boTrials.showSite(site.id); navigate('/bo/trials'); },
+      })),
 
-      ...(siteTrials.length
-        ? siteTrials.map((st) => h('div', { class: 'col-6' }, siteTrialCard(db, site, st)))
-        : [h('div', { class: 'col-12' }, card({},
-          empty('This site is not running any trial yet.', 'flask',
-            btn('Add a trial', {
-              variant: 'primary',
-              disabled: !unassigned.length,
-              onClick: () => openAddTrialDialog(site, unassigned),
-            }))))]),
+      h('div', { class: 'col-6' }, recapCard({
+        icon: 'box',
+        label: 'Shipments',
+        count: shipments.length,
+        sub: 'Raised by this site, all trials',
+        onOpen: () => { boShipments.showSite(site.id); navigate('/bo/shipments'); },
+      })),
 
-      h('div', { class: 'col-12' }, card({},
-        h('div', { class: 'row' }, tile('box'),
-          h('div', {},
-            h('div', { class: 'card__title' }, 'Shipments'),
-            h('div', { class: 'small dim' }, `${shipments.length} raised by this site`))),
-        shipments.length
-          ? h('div', { class: 'stack-sm' }, ...shipments.slice(0, 6).map((s) => shipmentCard(
-            db, s, () => navigate(`/bo/shipments/${s.id}`),
-          )))
-          : empty('This site has not requested anything yet.', 'box'))),
     ),
   ]);
 }
 
-/** One trial running at this site: its coordinator, cadences and allocation targets. */
-function siteTrialCard(db, site, siteTrial) {
-  const trial = getTrial(db, siteTrial.trialId);
-  const rows = siteStockRows(db, siteTrial);
-  const cadences = cadencesForTrial(db, siteTrial.trialId);
-  const coordinators = shippingCoordinators(db);
-  const shipmentCount = db.shipments
-    .filter((s) => s.siteId === site.id && s.trialId === siteTrial.trialId).length;
-
-  return card({},
+/**
+ * A count that hands over to its own section. The site page says how much there
+ * is; the section it opens says everything else, already filtered to this site.
+ */
+function recapCard({ icon: iconName, label, count, sub, onOpen }) {
+  return actionCard({ onClick: onOpen },
     h('div', { class: 'row-between' },
-      h('div', { class: 'row' }, tile('flask'),
+      h('div', { class: 'row' }, tile(iconName),
         h('div', {},
-          h('div', { class: 'card__title' }, trial ? trial.code : '—'),
-          h('div', { class: 'small dim' }, trial ? trial.name : ''))),
-      iconBtn('close', {
-        variant: 'ghost',
-        'aria-label': `Remove ${trial ? trial.code : 'trial'} from ${site.code}`,
-        onClick: () => removeSiteTrial(site, siteTrial, trial, shipmentCount),
-      })),
-
-    h('div', { class: 'kv' },
-      h('span', { class: 'kv__k' }, 'Activated'),
-      h('span', { class: 'kv__v' },
-        `${fmtDate(siteTrial.activatedOn)} · week ${siteStudyWeek(siteTrial)}`),
-      h('span', { class: 'kv__k' }, 'Shipments'),
-      h('span', { class: 'kv__v' }, String(shipmentCount))),
-
-    field('Shipping coordinator', select(
-      coordinators.map((c) => ({ value: c.id, label: `${c.name} — ${c.email}` })),
-      {
-        value: siteTrial.shippingCoordinatorId,
-        onChange: (e) => {
-          const next = e.target.value;
-          store.update((d) => {
-            const found = d.siteTrials.find((st) => st.id === siteTrial.id);
-            if (found) found.shippingCoordinatorId = next;
-          });
-          toast(`${userName(store.getDb(), next)} now coordinates ${trial ? trial.code : 'this trial'} at ${site.code}.`, 'info');
-        },
-      },
-    ), 'Requests for this trial land in their task list.'),
-
-    h('hr', { class: 'divider' }),
-    h('span', { class: 'card__label' }, `Cadences · ${cadences.length}`),
-    cadences.length
-      ? h('div', { class: 'row-wrap' }, ...cadences.map((c) => h('span', { class: 'badge badge--quiet' },
-        h('span', { class: 'badge__dot' }), `${c.name} · wk ${c.week}`)))
-      : h('p', { class: 'small dim' }, 'No cadences configured for this trial.'),
-
-    h('hr', { class: 'divider' }),
-    h('div', { class: 'row-between' },
-      h('div', {},
-        h('span', { class: 'card__label' }, 'Allocated items'),
-        h('div', { class: 'small dim' }, 'Target stock held here for this trial')),
-      btn('Edit targets', {
-        variant: 'ghost', size: 'sm', iconName: 'edit',
-        onClick: () => openAllocationDialog(site, siteTrial, trial),
-      })),
-    rows.length
-      ? h('div', { class: 'stack-sm' }, ...rows.map((r) => h('div', { class: 'stack-sm' },
-        h('div', { class: 'row-between' },
-          h('span', { class: 'small truncate' }, r.item.name),
-          h('span', { class: 'small strong tnum nowrap' },
-            `${fmtInt(r.held)} / ${fmtInt(r.target)}`)),
-        meter(r.ratio))))
-      : empty('No allocations configured.', 'warehouse'));
+          h('div', { class: 'card__title' }, label),
+          h('div', { class: 'small dim' }, sub))),
+      icon('arrowRight', 17)),
+    h('div', { class: 'card__metric' }, fmtInt(count)));
 }
 
-/** Edit the per-item target stock for one site-trial. */
-function openAllocationDialog(site, siteTrial, trial) {
-  const db = store.getDb();
-  const draft = new Map(siteTrial.allocations.map((a) => [a.itemId, a.targetQty]));
-  const title = `Allocations · ${site.code} · ${trial ? trial.code : ''}`;
+/** The two site-wide switches. Both take effect for every trial running here. */
+/**
+ * Correct a site's name. The code is left alone: it is how everyone refers to
+ * the site, it appears on every shipment and invoice, and a prototype has no
+ * business making it look re-assignable.
+ */
+function openNameDialog(site) {
+  const nameField = input({ value: site.name, placeholder: 'Hospital name' });
+  const problem = h('p', { class: 'small' });
 
-  dialog(title, (close) => h('div', { class: 'stack' },
-    h('p', { class: 'muted small' },
-      'The target is the most this site may hold of each item for this trial. Front-office '
-      + 'users can only request up to the target, minus what they hold and what is inbound. '
-      + 'Other trials at this site are unaffected.'),
-    h('div', { class: 'stack-sm' }, ...db.items.map((item) => {
-      const control = numberInput({
-        min: 0,
-        step: 1,
-        value: draft.get(item.id) || 0,
-        class: 'input--sm',
-        'aria-label': `${item.name} target`,
-        onChange: (e) => draft.set(item.id, Math.max(0, Math.round(Number(e.target.value) || 0))),
-      });
-      return h('div', { class: 'row' },
-        h('div', { class: 'grow', style: { minWidth: 0 } },
-          h('div', { class: 'small strong truncate' }, item.name),
-          h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),
-        h('div', { style: { width: '96px' } }, control));
-    })),
+  dialog(`Name · ${site.code}`, (close) => h('div', { class: 'stack' },
+    field('Site name', nameField, `Shown everywhere as “${site.code} · name”.`),
+    problem,
     h('div', { class: 'dialog__foot' },
       btn('Cancel', { variant: 'ghost', onClick: close }),
-      btn('Save allocations', {
+      btn('Save name', {
         variant: 'primary',
         onClick: () => {
-          store.update((d) => {
-            const found = d.siteTrials.find((st) => st.id === siteTrial.id);
-            if (!found) return;
-            found.allocations = [...draft]
-              .filter(([, qty]) => qty > 0)
-              .map(([itemId, targetQty]) => ({ itemId, targetQty }));
-          });
-          close();
-          toast(`Allocations saved for ${site.code} · ${trial ? trial.code : ''}.`);
-        },
-      }))), { wide: true });
-}
-
-/** Start running another trial at this site. Targets are inherited from its cadences. */
-function openAddTrialDialog(site, unassigned) {
-  const db = store.getDb();
-  const coordinators = shippingCoordinators(db);
-  let trialId = unassigned[0] ? unassigned[0].id : null;
-  let coordinatorId = coordinators[0] ? coordinators[0].id : null;
-
-  dialog(`Add a trial · ${site.code}`, (close) => h('div', { class: 'stack' },
-    h('p', { class: 'muted small' },
-      'The new pairing starts today, so its study week begins at 1, and it inherits its '
-      + 'allocation targets from the trial’s cadences. Its stock starts empty and fills as '
-      + 'shipments are delivered.'),
-    field('Trial', select(
-      unassigned.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` })),
-      { value: trialId, onChange: (e) => { trialId = e.target.value; } },
-    )),
-    field('Shipping coordinator', select(
-      coordinators.map((c) => ({ value: c.id, label: `${c.name} — ${c.email}` })),
-      { value: coordinatorId, onChange: (e) => { coordinatorId = e.target.value; } },
-    ), 'Receives this trial’s shipment tasks for this site.'),
-    h('div', { class: 'dialog__foot' },
-      btn('Cancel', { variant: 'ghost', onClick: close }),
-      btn('Add trial', {
-        variant: 'primary',
-        iconName: 'plus',
-        onClick: () => {
-          if (!trialId || !coordinatorId) {
-            toast('Pick a trial and a coordinator.', 'warn');
+          const name = nameField.value.trim();
+          if (!name) {
+            problem.style.color = 'var(--clay-rose-ink)';
+            problem.textContent = 'Give the site a name.';
             return;
           }
-          const created = store.update((d) => {
-            const siteTrial = {
-              id: `st-${d.siteTrials.length + 1}-${Date.now().toString(36)}`,
-              siteId: site.id,
-              trialId,
-              activatedOn: new Date().toISOString(),
-              shippingCoordinatorId: coordinatorId,
-              allocations: targetsFromCadences(d, trialId),
-            };
-            d.siteTrials.push(siteTrial);
-            return siteTrial;
+          store.update((d) => {
+            const found = d.sites.find((x) => x.id === site.id);
+            if (found) found.name = name;
           });
           close();
-          const trial = getTrial(store.getDb(), created.trialId);
-          toast(`${trial ? trial.code : 'Trial'} added to ${site.code} with `
-            + `${created.allocations.length} allocated items.`);
+          toast(`Renamed to ${site.code} · ${name}.`);
         },
       }))), { narrow: true });
 }
 
-/** Stop running a trial at this site. Refused while it still has shipments. */
-function removeSiteTrial(site, siteTrial, trial, shipmentCount) {
-  const label = trial ? trial.code : 'this trial';
-  if (shipmentCount) {
-    toast(`${label} has ${shipmentCount} shipment${shipmentCount === 1 ? '' : 's'} at `
-      + `${site.code} — it cannot be removed.`, 'warn');
-    return;
-  }
-  confirmDialog(
-    `Remove ${label} from ${site.code}?`,
-    'Its allocation targets and study week are discarded. Any stock recorded against this '
-    + 'pairing stays in the ledger but stops being counted.',
-    'Remove trial',
-    () => {
-      store.update((d) => {
-        const idx = d.siteTrials.findIndex((st) => st.id === siteTrial.id);
-        if (idx >= 0) d.siteTrials.splice(idx, 1);
-      });
-      toast(`${label} removed from ${site.code}.`, 'info');
-    },
-    'stop',
-  );
+function openSettingsDialog(site) {
+  let active = site.active;
+  let requiresPfi = site.requiresPfiApproval;
+
+  dialog(`Settings · ${site.code}`, (close) => h('div', { class: 'stack' },
+    h('div', { class: 'stack-sm' },
+      toggle('Site is active', active, (v) => { active = v; }),
+      h('div', { class: 'small dim' },
+        'Inactive sites keep their history but drop out of the active lists and stock totals.')),
+    h('div', { class: 'stack-sm' },
+      toggle('Requires PFI approval', requiresPfi, (v) => { requiresPfi = v; }),
+      h('div', { class: 'small dim' },
+        'An approver must countersign the invoice before the deposit can prepare a shipment. '
+        + 'Customs drives this, so it applies to every trial at this site.')),
+    h('div', { class: 'dialog__foot' },
+      btn('Cancel', { variant: 'ghost', onClick: close }),
+      btn('Save settings', {
+        variant: 'primary',
+        onClick: () => {
+          store.update((d) => {
+            const found = d.sites.find((x) => x.id === site.id);
+            if (!found) return;
+            found.active = active;
+            found.requiresPfiApproval = requiresPfi;
+          });
+          close();
+          toast(`Settings saved for ${site.code}.`);
+        },
+      }))), { narrow: true });
+}
+
+/**
+ * Who in the front office can see this site and raise requests for it. Access is
+ * held on the user (`siteIds`), so this edits every front-office user at once
+ * rather than a list hanging off the site.
+ */
+function openCoordinatorsDialog(site) {
+  const db = store.getDb();
+  const foUsers = db.users.filter((u) => u.role === 'FO');
+  const picked = new Set(foUsers.filter((u) => u.siteIds.includes(site.id)).map((u) => u.id));
+
+  dialog(`Site coordinators · ${site.code}`, (close) => h('div', { class: 'stack' },
+    h('p', { class: 'muted small' },
+      'Everyone ticked here sees this site in their site switcher and can request '
+      + 'shipments for it. Leaving it empty is allowed — nobody will be able to raise '
+      + 'a request for this site until somebody is assigned.'),
+    h('div', { class: 'stack-sm' }, ...foUsers.map((u) => toggle(
+      `${u.name} — ${u.email}`,
+      picked.has(u.id),
+      (checked) => { if (checked) picked.add(u.id); else picked.delete(u.id); },
+    ))),
+    h('div', { class: 'dialog__foot' },
+      btn('Cancel', { variant: 'ghost', onClick: close }),
+      btn('Save coordinators', {
+        variant: 'primary',
+        onClick: () => {
+          store.update((d) => {
+            for (const u of d.users.filter((x) => x.role === 'FO')) {
+              const has = u.siteIds.includes(site.id);
+              if (picked.has(u.id) && !has) u.siteIds.push(site.id);
+              if (!picked.has(u.id) && has) u.siteIds = u.siteIds.filter((id) => id !== site.id);
+            }
+            // The active persona may have just lost the site it was looking at.
+            const me = d.users.find((u) => u.id === d.currentUserId);
+            if (me && me.role === 'FO' && !me.siteIds.includes(d.currentSiteId)) {
+              d.currentSiteId = me.siteIds[0] || null;
+            }
+          });
+          close();
+          toast(`${picked.size} coordinator${picked.size === 1 ? '' : 's'} on ${site.code}.`);
+        },
+      }))), { narrow: true });
 }
 
 /* ---------- new site ---------- */
@@ -465,7 +395,8 @@ export function renderNew(main) {
       };
       d.sites.push(site);
 
-      // One pairing per trial picked, each inheriting that trial's cadence totals.
+      // One pairing per trial picked. Its cadence limit starts at zero — the
+      // deposit sets that on the trial, and until it does the site cannot order.
       for (const trialId of pickedTrials) {
         d.siteTrials.push({
           id: `st-${d.siteTrials.length + 1}-${Date.now().toString(36)}`,
@@ -473,7 +404,7 @@ export function renderNew(main) {
           trialId,
           activatedOn: new Date().toISOString(),
           shippingCoordinatorId: coordinatorId,
-          allocations: targetsFromCadences(d, trialId),
+          maxCadenceUnits: 0,
         });
       }
       return site;
@@ -485,7 +416,7 @@ export function renderNew(main) {
   };
 
   append(main, [
-    sectionHead('Add a site', 'The new site inherits allocation targets from each trial it runs'),
+    sectionHead('Add a site', 'Set each trial’s cadence limit afterwards, on the trial'),
 
     card({},
       h('div', { class: 'bento' },
@@ -506,8 +437,8 @@ export function renderNew(main) {
       h('hr', { class: 'divider' }),
       h('span', { class: 'card__label' }, 'Trials'),
       h('p', { class: 'small muted' },
-        'Pick every trial this site will run. Each one gets its own allocation targets, '
-        + 'stock and study week.'),
+        'Pick every trial this site will run. Each one gets its own stock and cadence '
+        + 'limit.'),
       h('div', { class: 'stack-sm' }, ...trialOptions.map((trial) => toggle(
         `${trial.code} — ${trial.name}`,
         pickedTrials.has(trial.id),
@@ -529,3 +460,5 @@ export function renderNew(main) {
         btn('Cancel', { variant: 'ghost', onClick: () => navigate('/bo/sites') }))),
   ]);
 }
+
+onSection('/bo/sites', () => Object.assign(filters, DEFAULTS));
