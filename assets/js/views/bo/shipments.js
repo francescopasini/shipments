@@ -35,6 +35,12 @@ export function showStatus(status) {
   filters.status = status;
 }
 
+/** Open the list showing only shipments assigned to the current user. */
+export function showMine() {
+  reset();
+  filters.owner = 'MINE';
+}
+
 export function render(main) {
   const db = store.getDb();
   const user = store.currentUser();

@@ -143,3 +143,76 @@ export function requestableCadenceUnits(db, siteTrial, cadence) {
 }
 
 export const ledgerFor = (db, shipmentId) => db.stockLedger.filter((l) => l.shipmentId === shipmentId);
+
+/* ---------- low stock ---------- */
+
+/**
+ * The most this item could ever be asked for: every site-trial's ceiling is a
+ * cap on any one cadence, and ordering N of a cadence means N of every item in
+ * it — so a pairing's ceiling is also the most it could ask of any item that
+ * one of its trial's cadences carries. Summed across every pairing whose trial
+ * ships the item, this is the deposit's total exposure to it.
+ *
+ * `siteTrials` scopes the sum to a subset of pairings — the stock matrix uses
+ * this to total a target across whichever sites are currently filtered in;
+ * every other caller wants the whole book, so it defaults to `db.siteTrials`.
+ */
+export function itemTargetTotal(db, itemId, siteTrials = db.siteTrials) {
+  const trialsCarryingItem = new Set(
+    db.cadences.filter((c) => c.itemIds.includes(itemId)).map((c) => c.trialId),
+  );
+  return siteTrials
+    .filter((st) => trialsCarryingItem.has(st.trialId))
+    .reduce((sum, st) => sum + (st.maxCadenceUnits || 0), 0);
+}
+
+/** Units of `itemId` already sitting at a site, any site, any trial — or a scoped subset. */
+export function siteStockTotal(db, itemId, siteTrials = db.siteTrials) {
+  return siteTrials.reduce(
+    (sum, st) => sum + balance(db, siteLocation(st.siteId, st.trialId), itemId), 0,
+  );
+}
+
+/**
+ * Below this, the deposit is low on `itemId`. The stricter of two readings:
+ * a flat third of everything it could ever be asked for, and — sharper once
+ * sites are already stocked up — what would still be uncovered if every unit
+ * on a site or already in transit were set against the total demand. An item
+ * nothing has a target for cannot be low; there is nothing to run out of.
+ */
+export function lowStockThreshold(db, itemId) {
+  const target = itemTargetTotal(db, itemId);
+  if (!target) return 0;
+  const uncovered = target - siteStockTotal(db, itemId) - balance(db, TRANSIT, itemId);
+  return Math.min(target / 3, uncovered);
+}
+
+export const isLowStock = (db, itemId) => balance(db, CENTRAL, itemId) < lowStockThreshold(db, itemId);
+
+/**
+ * One row per item: the deposit, what is in transit, what a scope of sites
+ * holds between them, and the target that scope adds up to. The stock matrix
+ * reads this against whichever sites the filters have picked out; the
+ * dashboard's low-stock card reads it against every site, since it has no
+ * filters of its own to narrow with.
+ *
+ * `low` is never scoped — it is the same deposit-wide check regardless of
+ * which sites are in view, since a shortage in the one central balance is what
+ * it is no matter which slice of the site columns you happen to be looking at.
+ */
+export function stockRows(db, siteTrials = db.siteTrials) {
+  return db.items.map((item) => {
+    const central = balance(db, CENTRAL, item.id);
+    const threshold = lowStockThreshold(db, item.id);
+    return {
+      item,
+      central,
+      transit: balance(db, TRANSIT, item.id),
+      selected: siteStockTotal(db, item.id, siteTrials),
+      target: itemTargetTotal(db, item.id, siteTrials),
+      threshold,
+      low: central < threshold,
+    };
+  });
+}
+

@@ -390,7 +390,19 @@
 }
 .table thead .col-head { z-index: 3; }
 .table td.is-zero { color: var(--ink-3); }
-.table td.is-low { color: var(--clay-rose-ink); font-weight: 700; }
+/* The four quantity columns read as one aligned block regardless of how long
+   their own header happens to be — "Central deposit" is no wider a column
+   than "Target" just because its label runs longer. */
+.table--stock th:not(.col-head),
+.table--stock td:not(.col-head) { width: 130px; }
+/* A low-stock item is called out across the whole row — never a badge itself
+   (that vocabulary stays for lifecycle statuses). The deposit cell the check
+   is actually about stays weighted so the eye still lands there first, but
+   the figure itself is not recolored — the row tint already says "this one"
+   without needing the number to shout it too. */
+.table tr.is-low td,
+.table tr.is-low:hover td { background: var(--clay-rose-soft); }
+.table td.is-low-cell { font-weight: 700; }
 
 /* ---------- timeline ---------- */
 

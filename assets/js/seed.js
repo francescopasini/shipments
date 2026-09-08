@@ -5,6 +5,7 @@ import {
   SHIPMENT_STATUS, SHIPMENT_STATUS_ORDER, PFI_STATUS, TASK_TYPE, BO_ROLE,
   CENTRAL, TRANSIT, siteLocation, LEDGER_REASON, NOTIFICATION_TYPE,
 } from './domain/constants.js';
+import { lowStockThreshold, balance } from './domain/stock.js';
 
 /* ---------- deterministic randomness ---------- */
 
@@ -486,10 +487,39 @@ export function buildSeed() {
     }
   }
 
-  const stockLedger = [...opening, ...restocks, ...ledger, ...settlement]
+  let stockLedger = [...opening, ...restocks, ...ledger, ...settlement]
     .sort((a, b) => a.at.localeCompare(b.at));
+  let stock = replayBalances(stockLedger);
 
-  const stock = replayBalances(stockLedger);
+  // --- run a few lines thin, so the low-stock check has something to catch ---
+  // Opening stock above is sized generously against demand, so nothing would
+  // trip the threshold by chance. A handful of items are deliberately trued
+  // down after the fact — one per category — so a reset shows the low-stock
+  // views doing something rather than sitting permanently empty.
+  const THIN_ITEMS = ['IMP-200', 'KIT-030', 'ANC-004'];
+  const dbSoFar = { items, cadences, siteTrials, stock };
+  const shortages = THIN_ITEMS.map((code) => {
+    const item = itemByCode[code];
+    const threshold = lowStockThreshold(dbSoFar, item.id);
+    const held = balance(dbSoFar, CENTRAL, item.id);
+    if (threshold <= 0 || held < threshold) return null;
+    const runDownTo = Math.floor(threshold * 0.6);
+    return {
+      id: `led-short-${item.id}`,
+      at: daysAgo(2),
+      itemId: item.id,
+      from: CENTRAL, to: null,
+      qty: held - runDownTo,
+      shipmentId: null,
+      reason: LEDGER_REASON.ADJUSTMENT,
+    };
+  }).filter(Boolean);
+
+  if (shortages.length) {
+    stockLedger = [...stockLedger, ...shortages].sort((a, b) => a.at.localeCompare(b.at));
+    stock = replayBalances(stockLedger);
+  }
+
   const depositHistory = buildDepositHistory(stockLedger, items);
 
   notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt));

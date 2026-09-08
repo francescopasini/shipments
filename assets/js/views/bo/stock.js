@@ -1,10 +1,12 @@
-// BO stock — items × locations matrix, filterable by site, country and trial.
-// A site holds stock per trial, so each site contributes one column per study.
+// BO stock — items against the deposit, in transit, and whichever sites the
+// filters currently select. A single site or a whole trial reads the same
+// way: "Selected sites" and "Target" total across however many pairings the
+// filters leave in scope, from one to all of them.
 
 import { h, append, fmtInt } from '../../ui/el.js';
 import { card, btn, empty, sectionHead, select, field } from '../../ui/components.js';
 import * as store from '../../store.js';
-import { matrixLocations, balance } from '../../domain/stock.js';
+import { matrixLocations, stockRows } from '../../domain/stock.js';
 import { COUNTRIES } from '../../domain/constants.js';
 import { allTrials, allSites } from '../../domain/selectors.js';
 import { onSection } from '../filters.js';
@@ -19,34 +21,22 @@ export function render(main) {
   const db = store.getDb();
   const rerender = () => { main.replaceChildren(); render(main); };
 
-  // A site id left over from a deleted site would hide every site column.
+  // A site id left over from a deleted site would empty the scope outright.
   if (filters.site !== 'ALL' && !db.sites.some((x) => x.id === filters.site)) filters.site = 'ALL';
-  const oneSite = filters.site !== 'ALL';
 
-  const columns = matrixLocations(db).filter((loc) => {
-    // The deposit is always shown: it is what every site column draws from, so a
-    // site's stock only means something read against it.
-    if (loc.kind === 'central') return true;
-    // In transit is a total across every site, so it says nothing once you are
-    // looking at one of them.
-    if (loc.kind === 'transit') return !oneSite;
+  const selectedPairs = matrixLocations(db).filter((loc) => loc.kind === 'site'
+    && (filters.site === 'ALL' || loc.site.id === filters.site)
+    && (filters.country === 'ALL' || loc.site.address.country === filters.country)
+    && (filters.trial === 'ALL' || loc.trial.id === filters.trial));
 
-    if (oneSite && loc.site.id !== filters.site) return false;
-    // Country and trial narrow the site columns only.
-    if (filters.country !== 'ALL' && loc.site.address.country !== filters.country) return false;
-    if (filters.trial !== 'ALL' && loc.trial.id !== filters.trial) return false;
-    return true;
-  });
+  const rows = stockRows(db, selectedPairs.map((p) => p.siteTrial))
+    .filter((row) => !filters.hideEmpty || row.central > 0 || row.transit > 0 || row.selected > 0);
 
-  const rows = db.items
-    .map((item) => ({
-      item,
-      cells: columns.map((loc) => balance(db, loc.id, item.id)),
-    }))
-    .filter((row) => !filters.hideEmpty || row.cells.some((qty) => qty > 0));
+  const lowCount = rows.filter((r) => r.low).length;
 
   append(main, [
-    sectionHead('Stock', `${rows.length} items across ${columns.length} locations`),
+    sectionHead('Stock', `${rows.length} items · ${selectedPairs.length} site-trials selected`
+      + (lowCount ? ` · ${lowCount} low on stock` : '')),
 
     card({ variant: 'card--tight' },
       h('div', { class: 'filters' },
@@ -87,8 +77,8 @@ export function render(main) {
           })
           : null)),
 
-    rows.length && columns.length
-      ? card({}, matrix(db, rows, columns))
+    rows.length
+      ? card({}, stockTable(rows))
       : card({}, empty('Nothing matches those filters.', 'grid',
         btn('Clear filters', {
           variant: 'primary',
@@ -97,27 +87,45 @@ export function render(main) {
   ]);
 }
 
-function matrix(db, rows, columns) {
+/**
+ * Item / Central deposit / In transit / Selected sites / Target. Shared with
+ * the dashboard's low-stock card, so the same numbers read the same way
+ * wherever they show up — only the row set and the label on the third column
+ * differ between the two.
+ */
+export function stockTable(rows, { selectedLabel = 'Selected sites' } = {}) {
   return h('div', { class: 'table-wrap' },
-    h('table', { class: 'table' },
-      h('thead', {},
-        h('tr', {},
-          h('th', { class: 'col-head' }, 'Item'),
-          ...columns.map((loc) => h('th', { title: loc.label }, loc.kind === 'site'
-            ? loc.short
-            : loc.label)))),
-      h('tbody', {}, ...rows.map((row) => h('tr', {},
+    h('table', { class: 'table table--stock' },
+      h('thead', {}, h('tr', {},
+        h('th', { class: 'col-head' }, 'Item'),
+        h('th', {}, 'Central deposit'),
+        h('th', {}, 'In transit'),
+        h('th', {}, selectedLabel),
+        h('th', {}, 'Target'))),
+      h('tbody', {}, ...rows.map((row) => h('tr', {
+        class: row.low ? 'is-low' : '',
+      },
         h('td', { class: 'col-head' },
           h('div', {},
             h('div', {}, row.item.name),
-            h('div', { class: 'small dim' },
-              `${row.item.code}${row.item.coldChain ? ' · cold chain' : ''}`))),
-        // There is no per-item target to be low against any more — a site's
-        // ceiling covers a whole cadence — so the cells report the count only.
-        ...row.cells.map((qty, i) => h('td', {
-          class: qty === 0 ? 'is-zero' : '',
-          title: `${columns[i].short || columns[i].label} · ${qty} units`,
-        }, qty === 0 ? '—' : fmtInt(qty))))))));
+            h('div', {
+              class: `small${row.low ? '' : ' dim'}`,
+              style: row.low ? { color: 'var(--clay-rose-ink)' } : null,
+            },
+              `${row.item.code}${row.item.coldChain ? ' · cold chain' : ''}${row.low ? ' · low stock' : ''}`))),
+        // A site's ceiling doubles as a per-item demand for whatever cadence
+        // carries it, so the deposit column alone is checked against it — that
+        // is the only balance a shortage here would actually be felt in.
+        h('td', {
+          class: [row.central === 0 ? 'is-zero' : '', row.low ? 'is-low-cell' : ''].filter(Boolean).join(' '),
+          title: row.low ? `${fmtInt(row.central)} units · below the low-stock threshold` : null,
+        }, row.central === 0 ? '—' : fmtInt(row.central)),
+        h('td', { class: row.transit === 0 ? 'is-zero' : '' },
+          row.transit === 0 ? '—' : fmtInt(row.transit)),
+        h('td', { class: row.selected === 0 ? 'is-zero' : '' },
+          row.selected === 0 ? '—' : fmtInt(row.selected)),
+        h('td', { class: row.target === 0 ? 'is-zero' : '' },
+          row.target === 0 ? '—' : fmtInt(row.target)))))));
 }
 
 onSection('/bo/stock', reset);

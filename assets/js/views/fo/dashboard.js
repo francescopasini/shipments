@@ -38,9 +38,13 @@ export function render(main) {
       }),
     ),
 
-    ...(siteTrials.length
-      ? siteTrials.map((st) => trialCard(db, st))
-      : [card({}, empty('This site is not running any trial yet.', 'flask'))]),
+    siteTrials.length
+      ? h('div', { class: 'bento' }, ...siteTrials.map((st) => h('div', {
+        // Two to a row once there is a second trial to show — one trial's card
+        // has no neighbour to sit beside, so it keeps the full width.
+        class: siteTrials.length > 1 ? 'col-6' : 'col-12',
+      }, trialCard(db, st))))
+      : card({}, empty('This site is not running any trial yet.', 'flask')),
   ]);
 }
 
@@ -60,9 +64,9 @@ function trialCard(db, siteTrial) {
 
   return card({},
     h('div', { class: 'row-between' },
-      h('div', { class: 'row' }, tile('flask'),
-        h('div', {},
-          h('div', { class: 'card__title' }, trial ? `${trial.code} · ${trial.name}` : '—'),
+      h('div', { class: 'row grow', style: { minWidth: 0 } }, tile('flask'),
+        h('div', { style: { minWidth: 0 } },
+          h('div', { class: 'card__title truncate' }, trial ? `${trial.code} · ${trial.name}` : '—'),
           h('div', { class: 'small dim' },
             `Up to ${siteTrial.maxCadenceUnits || 0} of any cadence`))),
       // The chart counts cadences; stock counts items. One is the natural next
@@ -70,11 +74,12 @@ function trialCard(db, siteTrial) {
       // lands on this trial's table rather than at the top of the page.
       btn('Detailed stock', {
         variant: 'ghost', size: 'sm', iconName: 'arrowRight',
+        class: 'nowrap',
         onClick: () => { showTrial(siteTrial.trialId); navigate('/fo/stock'); },
       })),
 
     cadences.length && siteTrial.maxCadenceUnits
-      ? groupedBars(STATES, series, { height: 440, unit: 'cadences' })
+      ? groupedBars(STATES, series, { height: 260, unit: 'cadences' })
       : empty(
         cadences.length
           ? 'The deposit has not set a limit for this site yet, so nothing can be ordered.'
