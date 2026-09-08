@@ -30,31 +30,41 @@ export function render(main) {
   const mySites = new Set(db.siteTrials
     .filter((st) => st.shippingCoordinatorId === user.id)
     .map((st) => st.siteId)).size;
+  const myTrials = new Set(db.siteTrials
+    .filter((st) => st.shippingCoordinatorId === user.id)
+    .map((st) => st.trialId)).size;
 
   append(main, [
     sectionHead('Dashboard'),
 
     h('div', { class: 'bento' },
-      h('div', { class: 'col-4' }, recap({
+      h('div', { class: 'col-3' }, recap({
         iconName: 'clipboard',
         label: 'My tasks',
         sub: 'Open tasks assigned to you',
         count: myTasks.length,
         onClick: () => navigate('/bo/tasks'),
       })),
-      h('div', { class: 'col-4' }, recap({
+      h('div', { class: 'col-3' }, recap({
         iconName: 'box',
         label: 'My open shipments',
         sub: 'Not yet delivered',
         count: myOpenShipments,
         onClick: () => { showMine(); navigate('/bo/shipments'); },
       })),
-      h('div', { class: 'col-4' }, recap({
+      h('div', { class: 'col-3' }, recap({
         iconName: 'building',
         label: 'My sites',
         sub: 'Hospitals you coordinate for',
         count: mySites,
         onClick: () => navigate('/bo/sites'),
+      })),
+      h('div', { class: 'col-3' }, recap({
+        iconName: 'flask',
+        label: 'My trials',
+        sub: 'Trials you coordinate for',
+        count: myTrials,
+        onClick: () => navigate('/bo/trials'),
       })),
 
       h('div', { class: 'col-12' }, card({},
