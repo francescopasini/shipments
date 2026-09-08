@@ -3,7 +3,7 @@
 
 import { h, append } from '../../ui/el.js';
 import {
-  card, actionCard, tile, btn, empty, sectionHead,
+  actionCard, tile, empty, sectionHead,
 } from '../../ui/components.js';
 import { icon } from '../../ui/icons.js';
 import { statusBars } from '../../ui/charts.js';
@@ -67,7 +67,9 @@ export function render(main) {
         onClick: () => navigate('/bo/trials'),
       })),
 
-      h('div', { class: 'col-12' }, card({},
+      h('div', { class: 'col-12' }, actionCard({
+        onClick: () => { showStatus('ALL'); navigate('/bo/shipments'); },
+      },
         h('div', { class: 'row-between' },
           h('div', { class: 'row' },
             // The section's own icon: the card is a way into the shipment list,
@@ -76,35 +78,27 @@ export function render(main) {
             h('div', {},
               h('div', { class: 'card__title' }, 'Shipments by status'),
               h('div', { class: 'small dim' }, 'Every site, every trial'))),
-          // The bars each open one status, so the button beside them has to say
-          // that it opens all of them — an unlabelled arrow would read as "open
-          // whatever is selected".
-          btn('All shipments', {
-            variant: 'ghost', size: 'sm', iconName: 'arrowRight',
-            onClick: () => { showStatus('ALL'); navigate('/bo/shipments'); },
-          })),
+          icon('arrowRight', 17)),
         // Every bar opens the list on exactly what it counted: the breakdown is a
-        // way into the shipments, not a number to look at and leave.
+        // way into the shipments, not a number to look at and leave. Each bar
+        // stops its click from also triggering the card's own "view all".
         statusBars(statusBreakdown(shipments).map((s) => ({
           label: s.label,
           value: s.value,
           tone: s.tone,
-          onClick: () => { showStatus(s.status); navigate('/bo/shipments'); },
+          onClick: (e) => { e.stopPropagation(); showStatus(s.status); navigate('/bo/shipments'); },
         }))))),
 
       // Same table the stock page itself uses — Item / Central deposit / In
       // transit / All sites / Target — narrowed here to the rows that are
       // actually running short, so the numbers read the same wherever they show up.
-      h('div', { class: 'col-12' }, card({},
+      h('div', { class: 'col-12' }, actionCard({ onClick: () => navigate('/bo/stock') },
         h('div', { class: 'row-between' },
           h('div', { class: 'row' }, tile('grid'),
             h('div', {},
               h('div', { class: 'card__title' }, 'Low stock'),
               h('div', { class: 'small dim' }, 'Central deposit against every site’s demand'))),
-          btn('Stock matrix', {
-            variant: 'ghost', size: 'sm', iconName: 'arrowRight',
-            onClick: () => navigate('/bo/stock'),
-          })),
+          icon('arrowRight', 17)),
         lowStock.length
           ? stockTable(lowStock, { selectedLabel: 'All sites' })
           : empty('Nothing is low on stock right now.', 'check'))),
