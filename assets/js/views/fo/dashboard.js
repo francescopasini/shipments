@@ -98,7 +98,7 @@ function stockByCadenceCard(db, siteTrials) {
           h('span', { class: 'legend__item' },
             h('span', { class: 'legend__swatch legend__swatch--butter' }),
             h('span', {}, 'On the way'))),
-        cadenceStockBars(rows, { height: 220 }))
+        cadenceStockBars(rows, { height: 200 }))
       : empty('This site is not running any trial yet.', 'flask'));
 }
 

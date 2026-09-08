@@ -205,18 +205,19 @@ export function statusBars(rows) {
  *
  * A site running several trials puts every cadence in the one chart, so each
  * bar carries a caption underneath it — which trial, then which cadence,
- * then the week — rather than leaving the trial to a tooltip alone. That
- * caption is plain HTML below the SVG, not SVG text: the chart itself scales
- * with the card (bars, gaps, plot area all grow together), but the caption
- * has to read at the same size as everything else on the page regardless —
- * scaling type with a bar chart is not something anyone asked for.
+ * then the week — rather than leaving the trial to a tooltip alone. Every
+ * piece of text in this chart — that caption, the axis ticks, the totals
+ * above each bar — is plain HTML laid over the SVG at a percentage position,
+ * not SVG text: the SVG scales with the card (bars, gaps, plot area all grow
+ * together), but nothing here reads at a different size depending on how
+ * wide the card happens to be.
  *
  * rows: [{ trial, label, week, stock, transit }]
  */
 export function cadenceStockBars(rows, { height = 220 } = {}) {
   const W = 760;
   const H = height;
-  const pad = { t: 18, r: 14, b: 14, l: 46 };
+  const pad = { t: 22, r: 14, b: 14, l: 8 };
   const plotW = W - pad.l - pad.r;
   const plotH = H - pad.t - pad.b;
 
@@ -235,26 +236,27 @@ export function cadenceStockBars(rows, { height = 220 } = {}) {
     // from its width and the viewBox's own aspect ratio, so bars, gaps and
     // the plot area all grow with the card while staying in proportion —
     // unlike `preserveAspectRatio: none`, which fills the box by stretching
-    // width and height independently and drags the text along with it.
+    // width and height independently and drags everything drawn in it along
+    // with it, size included.
     role: 'img',
     'aria-label': rows.map((r) => `${r.trial} \u00b7 ${r.label} (week ${r.week}): `
       + `${fmtInt(r.stock)} in stock, ${fmtInt(r.transit)} on the way`).join('. '),
   });
 
+  // Gridlines only — no text. The tick values are rendered as HTML below, at
+  // a fixed size, positioned at the same fraction of the chart's height that
+  // its gridline sits at, so the two can never drift apart.
+  const ticks = [];
   for (let i = 0; i <= 4; i += 1) {
     const value = (max / 4) * i;
     const yy = y(value);
-    append(svg, [
-      s('line', {
-        x1: pad.l, x2: W - pad.r, y1: yy, y2: yy, stroke: 'var(--line)', 'stroke-width': 1,
-      }),
-      s('text', {
-        x: pad.l - 10, y: yy + 4, 'text-anchor': 'end',
-        fill: 'var(--ink-3)', 'font-size': '11', 'font-weight': '600',
-      }, fmtInt(value)),
-    ]);
+    append(svg, [s('line', {
+      x1: pad.l, x2: W - pad.r, y1: yy, y2: yy, stroke: 'var(--line)', 'stroke-width': 1,
+    })]);
+    ticks.push({ value, topPct: (yy / H) * 100 });
   }
 
+  const barTotals = [];
   rows.forEach((row, i) => {
     const bandX = pad.l + i * bandW;
     const x = bandX + (bandW - barW) / 2;
@@ -290,27 +292,53 @@ export function cadenceStockBars(rows, { height = 220 } = {}) {
       }
     }
 
-    append(svg, [s('text', {
-      x: x + barW / 2, y: y(total) - 5, 'text-anchor': 'middle',
-      fill: total > 0 ? 'var(--ink-2)' : 'var(--ink-3)',
-      'font-size': '11', 'font-weight': '700',
-    }, s('title', {}, caption), fmtInt(total))]);
+    barTotals.push({
+      total, caption,
+      leftPct: ((x + barW / 2) / W) * 100,
+      topPct: (y(total) / H) * 100,
+    });
   });
+
+  // Every number sits at a percentage of the plot's own box, so it tracks the
+  // SVG's scaling exactly without ever being scaled itself — the font-size is
+  // fixed CSS throughout, same as the caption row underneath. The tick column
+  // is a real flex sibling of the plot rather than an absolutely-positioned
+  // overlay on top of it, because its text needs room the SVG does not have
+  // to give up: `align-items: stretch` (the flex default) is what makes its
+  // height track the plot's own intrinsic height with no measuring involved.
+  const yticks = h('div', { class: 'chart-yticks' },
+    ...ticks.map((t) => h('div', {
+      class: 'chart-ytick', style: { top: `${t.topPct}%` },
+    }, fmtInt(t.value))));
+
+  const barTotalLabels = h('div', { class: 'chart-bar-totals' },
+    ...barTotals.map((b) => h('div', {
+      class: `chart-bar-total${b.total > 0 ? '' : ' is-zero'}`,
+      style: { top: `${b.topPct}%`, left: `${b.leftPct}%` },
+      title: b.caption,
+    }, fmtInt(b.total))));
 
   // The caption row sits below the SVG as ordinary HTML, inset to match the
   // plot's own left/right padding so each caption still centers under its
-  // bar. `.cadence-x-label__name` is the one line a narrow card drops first —
-  // see clay.css — since it is the longest and the least essential once
-  // the trial and the week are already there.
-  const captions = h('div', {
-    class: 'cadence-x-labels',
-    style: { paddingLeft: `${(pad.l / W) * 100}%`, paddingRight: `${(pad.r / W) * 100}%` },
-  }, ...rows.map((row) => h('div', { class: 'cadence-x-label' },
-    h('div', { class: 'cadence-x-label__trial' }, row.trial),
-    h('div', { class: 'cadence-x-label__name' }, row.label),
-    h('div', { class: 'cadence-x-label__week' }, `Week ${row.week}`))));
+  // bar, and offset by the same width as the tick column above it so the two
+  // rows line up. `.cadence-x-label__name` is the one line a narrow card
+  // drops first — see clay.css — since it is the longest and the least
+  // essential once the trial and the week are already there.
+  const captions = h('div', { class: 'cadence-x-labels-row' },
+    h('div', { class: 'chart-yticks-spacer' }),
+    h('div', {
+      class: 'cadence-x-labels',
+      style: { paddingLeft: `${(pad.l / W) * 100}%`, paddingRight: `${(pad.r / W) * 100}%` },
+    }, ...rows.map((row) => h('div', { class: 'cadence-x-label' },
+      h('div', { class: 'cadence-x-label__trial' }, row.trial),
+      h('div', { class: 'cadence-x-label__name' }, row.label),
+      h('div', { class: 'cadence-x-label__week' }, `Week ${row.week}`)))));
 
-  return h('div', { class: 'chart' }, svg, captions);
+  return h('div', { class: 'chart' },
+    h('div', { class: 'chart-plot' },
+      yticks,
+      h('div', { class: 'chart-plot-main' }, svg, barTotalLabels)),
+    captions);
 }
 
 

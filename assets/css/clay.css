@@ -565,10 +565,30 @@
 
 .chart { position: relative; width: 100%; container-type: inline-size; container-name: chart; }
 
-/* The cadence chart's own x-axis captions — plain HTML below the SVG, sized to
-   match the legend exactly, so text stays the same size at any card width
-   while the SVG above it keeps scaling freely. */
-.cadence-x-labels { display: flex; margin-top: 8px; }
+/* The cadence chart's own numbers — the axis ticks, the total above each bar,
+   and the trial/cadence/week caption below it — are all plain HTML at a fixed
+   size (matching the legend), positioned as a percentage of the plot's own
+   box rather than drawn as SVG text. The SVG scales its bars, gaps and plot
+   area with the card; none of this text scales with it. */
+.chart-plot { display: flex; align-items: stretch; }
+.chart-plot-main { position: relative; flex: 1 1 0; min-width: 0; }
+
+.chart-yticks, .chart-yticks-spacer { flex: none; width: 34px; }
+.chart-yticks { position: relative; }
+.chart-ytick {
+  position: absolute; left: 0; right: 6px; transform: translateY(-50%);
+  font: var(--t-small); color: var(--ink-3); text-align: right;
+}
+
+.chart-bar-totals { position: absolute; inset: 0; pointer-events: none; }
+.chart-bar-total {
+  position: absolute; transform: translate(-50%, calc(-100% - 4px));
+  font: var(--t-small); font-weight: 700; color: var(--ink-2); white-space: nowrap;
+}
+.chart-bar-total.is-zero { color: var(--ink-3); }
+
+.cadence-x-labels-row { display: flex; margin-top: 8px; }
+.cadence-x-labels { display: flex; flex: 1 1 0; min-width: 0; }
 .cadence-x-label { flex: 1 1 0; min-width: 0; text-align: center; }
 .cadence-x-label__trial { font: var(--t-small); font-weight: 700; color: var(--ink-2); }
 .cadence-x-label__name {
