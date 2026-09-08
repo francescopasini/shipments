@@ -90,18 +90,19 @@ export function render(main) {
 /**
  * Item / Central deposit / In transit / Selected sites / Target. Shared with
  * the dashboard's low-stock card, so the same numbers read the same way
- * wherever they show up — only the row set and the label on the third column
- * differ between the two.
+ * wherever they show up. That card only has room to ask one question — is the
+ * deposit itself running short — so `compact` drops every column but the one
+ * the check is actually about.
  */
-export function stockTable(rows, { selectedLabel = 'Selected sites' } = {}) {
+export function stockTable(rows, { selectedLabel = 'Selected sites', compact = false } = {}) {
   return h('div', { class: 'table-wrap' },
     h('table', { class: 'table table--stock' },
       h('thead', {}, h('tr', {},
         h('th', { class: 'col-head' }, 'Item'),
         h('th', {}, 'Central deposit'),
-        h('th', {}, 'In transit'),
-        h('th', {}, selectedLabel),
-        h('th', {}, 'Target'))),
+        compact ? null : h('th', {}, 'In transit'),
+        compact ? null : h('th', {}, selectedLabel),
+        compact ? null : h('th', {}, 'Target'))),
       h('tbody', {}, ...rows.map((row) => h('tr', {
         class: row.low ? 'is-low' : '',
       },
@@ -120,11 +121,11 @@ export function stockTable(rows, { selectedLabel = 'Selected sites' } = {}) {
           class: [row.central === 0 ? 'is-zero' : '', row.low ? 'is-low-cell' : ''].filter(Boolean).join(' '),
           title: row.low ? `${fmtInt(row.central)} units · below the low-stock threshold` : null,
         }, row.central === 0 ? '—' : fmtInt(row.central)),
-        h('td', { class: row.transit === 0 ? 'is-zero' : '' },
+        compact ? null : h('td', { class: row.transit === 0 ? 'is-zero' : '' },
           row.transit === 0 ? '—' : fmtInt(row.transit)),
-        h('td', { class: row.selected === 0 ? 'is-zero' : '' },
+        compact ? null : h('td', { class: row.selected === 0 ? 'is-zero' : '' },
           row.selected === 0 ? '—' : fmtInt(row.selected)),
-        h('td', { class: row.target === 0 ? 'is-zero' : '' },
+        compact ? null : h('td', { class: row.target === 0 ? 'is-zero' : '' },
           row.target === 0 ? '—' : fmtInt(row.target)))))));
 }
 

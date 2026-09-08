@@ -197,58 +197,48 @@ export function statusBars(rows) {
 }
 
 /**
- * One panel per state, side by side in the same card: one bar per series inside
- * each panel.
+ * One bar per cadence, split into what is already on site and what is still
+ * on the way. Always the same two colours — the deposit's stock over time
+ * chart is the only other place sage carries this specific meaning, "already
+ * landed" — so unlike the status chart this pair needs no per-bar tooltip to
+ * disambiguate identity, only to give the exact split behind a rounded total.
  *
- * The two states used to share a plot, and a run of bars with empty slots in it
- * read as one continuous row — you could not see where "in stock" ended. They
- * are separate plots now, but the axis is deliberately *not* per-panel: `max` is
- * computed across every value, so a bar's height means the same thing in both
- * and the panels can be read against each other.
+ * A site running several trials puts every cadence in the one chart, so each
+ * bar carries a caption underneath it — which trial, then which cadence,
+ * then the week — rather than leaving the trial to a tooltip alone. That
+ * caption is plain HTML below the SVG, not SVG text: the chart itself scales
+ * with the card (bars, gaps, plot area all grow together), but the caption
+ * has to read at the same size as everything else on the page regardless —
+ * scaling type with a bar chart is not something anyone asked for.
  *
- * This is the one chart where colour does carry identity, so it is propped up on
- * every other channel available: each bar is labelled with its value, each bar
- * carries a tooltip naming its series, and each panel spells itself out in its
- * aria-label. The tones are also handed out in an order that keeps rose and sage
- * — the pair that collides under deuteranopia — from appearing together until a
- * trial has five cadences.
- *
- * groups: ['In stock', 'On the way']
- * series: [{ label, tone, values: [n, n] }]
+ * rows: [{ trial, label, week, stock, transit }]
  */
-export function groupedBars(groups, series, { height = 220, unit = '' } = {}) {
-  const every = series.flatMap((x) => x.values);
-  const max = niceMax(Math.max(1, ...every));
-
-  const panels = groups.map((group, gi) => panel(group, gi, series, { height, unit, max }));
-
-  const legend = h('div', { class: 'legend' }, ...series.map((one) => h('span', { class: 'legend__item' },
-    h('span', { class: `legend__swatch legend__swatch--${one.tone}` }),
-    h('span', {}, one.label))));
-
-  return h('div', { class: 'stack-sm' }, legend, h('div', { class: 'chart-split' }, ...panels));
-}
-
-/** One state's plot. `max` arrives from the caller so every panel shares an axis. */
-function panel(group, gi, series, { height, unit, max }) {
-  const W = 380;
+export function cadenceStockBars(rows, { height = 220 } = {}) {
+  const W = 760;
   const H = height;
-  const pad = { t: 18, r: 14, b: 34, l: 46 };
+  const pad = { t: 18, r: 14, b: 14, l: 46 };
   const plotW = W - pad.l - pad.r;
   const plotH = H - pad.t - pad.b;
-  const y = (v) => pad.t + plotH - (v / max) * plotH;
 
-  // A tenth of the plot each side keeps the bars off the axis and the frame.
-  const barW = Math.min(72, (plotW * 0.8) / Math.max(1, series.length));
-  const startX = pad.l + (plotW - barW * series.length) / 2;
+  const totals = rows.map((r) => r.stock + r.transit);
+  const max = niceMax(Math.max(1, ...totals));
+  const y = (v) => pad.t + plotH - (v / max) * plotH;
+  const baseline = pad.t + plotH;
+
+  const bandW = plotW / Math.max(1, rows.length);
+  const barW = Math.min(84, bandW * 0.6);
 
   const svg = s('svg', {
     viewBox: `0 0 ${W} ${H}`,
     width: '100%',
-    height,
+    // No `height` attribute: left unset, the SVG's rendered height is derived
+    // from its width and the viewBox's own aspect ratio, so bars, gaps and
+    // the plot area all grow with the card while staying in proportion —
+    // unlike `preserveAspectRatio: none`, which fills the box by stretching
+    // width and height independently and drags the text along with it.
     role: 'img',
-    'aria-label': `${group} — `
-      + series.map((x) => `${x.label} ${fmtInt(x.values[gi] || 0)}`).join(', '),
+    'aria-label': rows.map((r) => `${r.trial} \u00b7 ${r.label} (week ${r.week}): `
+      + `${fmtInt(r.stock)} in stock, ${fmtInt(r.transit)} on the way`).join('. '),
   });
 
   for (let i = 0; i <= 4; i += 1) {
@@ -265,40 +255,64 @@ function panel(group, gi, series, { height, unit, max }) {
     ]);
   }
 
-  series.forEach((one, si) => {
-    const value = one.values[gi] || 0;
-    const x = startX + si * barW;
-    const top = y(value);
-    const caption = `${one.label} · ${group}: ${fmtInt(value)}${unit ? ` ${unit}` : ''}`;
+  rows.forEach((row, i) => {
+    const bandX = pad.l + i * bandW;
+    const x = bandX + (bandW - barW) / 2;
+    const total = row.stock + row.transit;
+    const caption = `${row.trial} \u00b7 ${row.label} (week ${row.week}): `
+      + `${fmtInt(row.stock)} in stock, ${fmtInt(row.transit)} on the way`;
 
-    // A zero is drawn as if it were a one: a slot left blank reads as missing
-    // data, and which cadence is at nothing is exactly what this chart is being
-    // consulted about. It sits under its own label, so it cannot be misread as a
-    // real quantity.
-    const top1 = Math.min(top, y(1));
-    append(svg, [s('rect', {
-      x: x + 2, y: top1, width: Math.max(2, barW - 4), height: pad.t + plotH - top1,
-      rx: 4, fill: `var(--clay-${one.tone})`, opacity: value > 0 ? null : '.5',
-    }, s('title', {}, caption))]);
+    if (total === 0) {
+      // A cadence at nothing still occupies its slot — a bar simply not drawn
+      // reads as missing data rather than as none, and that distinction is
+      // exactly what this chart is being consulted about.
+      append(svg, [s('rect', {
+        x: x + 2, y: y(0.1), width: Math.max(2, barW - 4), height: baseline - y(0.1),
+        rx: 4, fill: 'var(--clay-sage)', opacity: '.35',
+      }, s('title', {}, caption))]);
+    } else {
+      const stockTop = y(row.stock);
+      if (row.stock > 0) {
+        append(svg, [s('rect', {
+          x: x + 2, y: stockTop, width: Math.max(2, barW - 4), height: baseline - stockTop,
+          rx: 4, fill: 'var(--clay-sage)',
+        }, s('title', {}, caption))]);
+      }
+      if (row.transit > 0) {
+        const transitTop = y(total);
+        // The bottom corners round with the stack; the top ones round only
+        // when this segment is the one actually on top.
+        append(svg, [s('rect', {
+          x: x + 2, y: transitTop, width: Math.max(2, barW - 4),
+          height: Math.max(2, stockTop - transitTop) + (row.stock > 0 ? 4 : 0),
+          rx: 4, fill: 'var(--clay-butter)',
+        }, s('title', {}, caption))]);
+      }
+    }
 
     append(svg, [s('text', {
-      x: x + barW / 2, y: top1 - 5, 'text-anchor': 'middle',
-      fill: value > 0 ? 'var(--ink-2)' : 'var(--ink-3)',
+      x: x + barW / 2, y: y(total) - 5, 'text-anchor': 'middle',
+      fill: total > 0 ? 'var(--ink-2)' : 'var(--ink-3)',
       'font-size': '11', 'font-weight': '700',
-    }, s('title', {}, caption), fmtInt(value))]);
+    }, s('title', {}, caption), fmtInt(total))]);
   });
 
-  append(svg, [s('text', {
-    x: pad.l + plotW / 2, y: H - 12, 'text-anchor': 'middle',
-    fill: 'var(--ink-2)', 'font-size': '12', 'font-weight': '600',
-  }, group)]);
+  // The caption row sits below the SVG as ordinary HTML, inset to match the
+  // plot's own left/right padding so each caption still centers under its
+  // bar. `.cadence-x-label__name` is the one line a narrow card drops first —
+  // see clay.css — since it is the longest and the least essential once
+  // the trial and the week are already there.
+  const captions = h('div', {
+    class: 'cadence-x-labels',
+    style: { paddingLeft: `${(pad.l / W) * 100}%`, paddingRight: `${(pad.r / W) * 100}%` },
+  }, ...rows.map((row) => h('div', { class: 'cadence-x-label' },
+    h('div', { class: 'cadence-x-label__trial' }, row.trial),
+    h('div', { class: 'cadence-x-label__name' }, row.label),
+    h('div', { class: 'cadence-x-label__week' }, `Week ${row.week}`))));
 
-  return h('div', { class: 'chart' }, svg);
+  return h('div', { class: 'chart' }, svg, captions);
 }
 
-/** The tone for the nth series. Rose trails sage so the pair that collides under
-    deuteranopia only meets once a trial runs five cadences. */
-export const seriesTone = (i) => ['sky', 'butter', 'lilac', 'sage', 'rose'][i % 5];
 
 /** Compact inline trend line for metric cards. */
 export function sparkline(values, tone = 'sky') {

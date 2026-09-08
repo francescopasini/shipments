@@ -67,7 +67,7 @@ export function render(main) {
         onClick: () => navigate('/bo/trials'),
       })),
 
-      h('div', { class: 'col-12' }, actionCard({
+      h('div', { class: 'col-6' }, actionCard({
         onClick: () => { showStatus('ALL'); navigate('/bo/shipments'); },
       },
         h('div', { class: 'row-between' },
@@ -92,7 +92,7 @@ export function render(main) {
       // Same table the stock page itself uses — Item / Central deposit / In
       // transit / All sites / Target — narrowed here to the rows that are
       // actually running short, so the numbers read the same wherever they show up.
-      h('div', { class: 'col-12' }, actionCard({ onClick: () => navigate('/bo/stock') },
+      h('div', { class: 'col-6' }, actionCard({ onClick: () => navigate('/bo/stock') },
         h('div', { class: 'row-between' },
           h('div', { class: 'row' }, tile('grid'),
             h('div', {},
@@ -100,7 +100,7 @@ export function render(main) {
               h('div', { class: 'small dim' }, 'Central deposit against every site’s demand'))),
           icon('arrowRight', 17)),
         lowStock.length
-          ? stockTable(lowStock, { selectedLabel: 'All sites' })
+          ? stockTable(lowStock, { compact: true })
           : empty('Nothing is low on stock right now.', 'check'))),
     ),
   ]);

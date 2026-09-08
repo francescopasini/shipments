@@ -9,7 +9,7 @@ import { navigate, currentPath } from '../router.js';
 import * as store from '../store.js';
 import { BO_ROLE_META } from '../domain/constants.js';
 import {
-  openTasksFor, unreadCount, sitesForUser, trialSummary, siteTitle, siteWhere,
+  openTasksFor, unreadCount, sitesForUser, trialSummary, siteWhere,
 } from '../domain/selectors.js';
 import { FO_SECTIONS, BO_SECTIONS, navSections, profilePath } from './sections.js';
 import { resetSection } from './filters.js';
@@ -107,9 +107,11 @@ function siteSwitcher(db, user) {
   },
   h('div', { class: 'row site-switch__row' },
     tile('building', 'sm'),
-    // One line, wrapping to two — the name is the useful half and truncating it
-    // to "Charité Campus Mi…" told the coordinator nothing they did not know.
-    h('div', { class: 'grow site-switch__name', style: { minWidth: 0 } }, siteTitle(site)),
+    // Name only, no code — the switcher already shows one site at a time, so
+    // there is nothing here for the code to disambiguate. One line, wrapping to
+    // two — the name is the useful part and truncating it told the coordinator
+    // nothing they did not know.
+    h('div', { class: 'grow site-switch__name', style: { minWidth: 0 } }, site.name),
     options.length > 1 ? icon('swap', 16) : null));
 }
 

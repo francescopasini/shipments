@@ -1,29 +1,16 @@
-// FO stock — what the site holds, one table per trial.
-//
-// Stock is held per trial: what a site holds for one study is never drawn on for
-// another. That used to be a chip strip you switched between, which made two
-// separate positions look like one thing being filtered. A table each says it
-// outright, and lets the coordinator read both at once.
+// FO stock — everything the site holds, across every trial it runs, in one
+// table. A row is grouped under the trial and cadence that first calls for its
+// item, so an item shared by two cadences (or, now, seen in two trials'
+// worth of demand) is still only ever listed once.
 //
 // Nothing here is maintained by hand — it moves when the deposit marks a
 // shipment delivered.
 
 import { h, append, fmtInt } from '../../ui/el.js';
-import { card, tile, btn, empty, sectionHead, badge } from '../../ui/components.js';
+import { card, btn, empty, sectionHead } from '../../ui/components.js';
 import * as store from '../../store.js';
 import { openRequestDialog } from './shipments.js';
-import { siteStockRows, siteTrialsForSite, getTrial } from '../../domain/selectors.js';
-import { onSection } from '../filters.js';
-
-// Which trial's table to scroll to on the next render. The dashboard sets it,
-// because "detailed stock" asked from one trial's card means that trial's table
-// — on a site running four studies, landing at the top is landing nowhere.
-let focusTrialId = null;
-
-/** Open the stock page at one trial's table. */
-export function showTrial(trialId) {
-  focusTrialId = trialId;
-}
+import { siteStockRows, siteTrialsForSite, getTrial, cadencesForTrial } from '../../domain/selectors.js';
 
 export function render(main) {
   const db = store.getDb();
@@ -34,7 +21,7 @@ export function render(main) {
   }
 
   const siteTrials = siteTrialsForSite(db, site.id);
-  let target = null;
+  const groups = siteTrials.flatMap((st) => trialGroups(db, st));
 
   append(main, [
     sectionHead('Stock',
@@ -43,64 +30,62 @@ export function render(main) {
         variant: 'primary', iconName: 'plus', onClick: () => openRequestDialog(),
       })),
 
-    ...(siteTrials.length
-      ? siteTrials.map((st) => {
-        const node = trialStock(db, st);
-        if (st.trialId === focusTrialId) target = node;
-        return node;
-      })
-      : [card({}, empty('This site is not running any trial yet.', 'flask'))]),
+    groups.length
+      ? card({}, stockTable(groups))
+      : card({}, empty('No stock has been delivered for this site yet.', 'warehouse')),
   ]);
-
-  // Consumed once: arriving here again from the menu should not keep jumping.
-  focusTrialId = null;
-  if (target) {
-    // After the append, so the node has a position to scroll to.
-    requestAnimationFrame(() => {
-      target.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      // The scroll alone is ambiguous on a short page that did not move — the
-      // card says once that it is the one that was asked for.
-      target.classList.add('is-flash');
-    });
-  }
 }
 
-/** One trial's position at this site. */
-function trialStock(db, siteTrial) {
+/**
+ * One trial's rows, grouped under the cadence that first calls for the item —
+ * an item shared by two cadences of the same trial is only ever listed under
+ * the earlier one. Every group's label leads with the trial code, so groups
+ * from every trial the site runs can sit in the one combined table.
+ */
+function trialGroups(db, siteTrial) {
   const trial = getTrial(db, siteTrial.trialId);
+  const code = trial ? trial.code : '—';
   const rows = siteStockRows(db, siteTrial);
-  const held = rows.reduce((sum, r) => sum + r.held, 0);
+  const byId = new Map(rows.map((r) => [r.item.id, r]));
+  const assigned = new Set();
+  const groups = [];
 
-  return card({},
-    h('div', { class: 'row' }, tile('flask'),
-      h('div', {},
-        h('div', { class: 'card__title' }, trial ? trial.code : '—'),
-        h('div', { class: 'small dim' }, rows.length
-          ? `${fmtInt(held)} units across ${rows.length} item${rows.length === 1 ? '' : 's'}`
-          : 'Nothing held yet'))),
-    rows.length
-      ? stockTable(rows)
-      : empty('No stock has been delivered for this trial yet.', 'warehouse'));
+  for (const cadence of cadencesForTrial(db, siteTrial.trialId)) {
+    const groupRows = cadence.itemIds
+      .filter((id) => byId.has(id) && !assigned.has(id))
+      .map((id) => { assigned.add(id); return byId.get(id); });
+    if (groupRows.length) {
+      groups.push({ label: `${code} · ${cadence.name} · Week ${cadence.week}`, rows: groupRows });
+    }
+  }
+  const leftover = rows.filter((r) => !assigned.has(r.item.id));
+  if (leftover.length) groups.push({ label: `${code} · Other items`, rows: leftover });
+
+  return groups;
 }
 
-function stockTable(rows) {
+/** groups: [{ label, rows }] — a bare table, no card header of its own. */
+function stockTable(groups) {
   return h('div', { class: 'table-wrap' },
     h('table', { class: 'table' },
       h('thead', {}, h('tr', {},
         h('th', { class: 'col-head' }, 'Item'),
         h('th', {}, 'In stock'),
         h('th', {}, 'On the way'))),
-      h('tbody', {}, ...rows.map((row) => {
-        const { item, held, inbound } = row;
-        return h('tr', {},
-          h('td', { class: 'col-head' },
-            h('div', { class: 'row-wrap' },
-              h('span', {}, item.name),
-              item.coldChain ? badge('Cold chain', 'sky') : null),
-            h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),
-          h('td', { class: 'tnum strong' }, fmtInt(held)),
-          h('td', { class: `tnum${inbound ? '' : ' is-zero'}` }, inbound ? fmtInt(inbound) : '—'));
-      }))));
+      h('tbody', {}, ...groups.flatMap((group) => [
+        h('tr', { class: 'table__group' },
+          h('td', { class: 'col-head', colspan: 3 }, group.label)),
+        ...group.rows.map((row) => itemRow(row)),
+      ]))));
 }
 
-onSection('/fo/stock', () => { focusTrialId = null; });
+function itemRow(row) {
+  const { item, held, inbound } = row;
+  return h('tr', {},
+    h('td', { class: 'col-head' },
+      h('div', {}, item.name),
+      h('div', { class: 'small dim' }, `${item.code} · per ${item.unit}`)),
+    h('td', { class: 'tnum strong' }, fmtInt(held)),
+    h('td', { class: `tnum${inbound ? '' : ' is-zero'}` }, inbound ? fmtInt(inbound) : '—'));
+}
+

@@ -371,6 +371,15 @@
 /* A two-word heading wraps rather than being clipped by its own column. */
 .table--fit th { white-space: normal; }
 .table tbody tr:last-child td { border-bottom: 0; }
+/* A cadence's own row, naming what groups the items under it — text only, no
+   numbers, so it can never be mistaken for an item's own row. A tinted band
+   rather than a plain rule, so a run of many groups still reads as separate
+   sections rather than one long list with captions scattered through it. */
+.table tr.table__group td {
+  padding: 8px 13px;
+  font: var(--t-section); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-2); background: var(--card-sunken); border-bottom: 0;
+}
 .table tbody tr:hover td { background: var(--card-sunken); }
 /* Rows that navigate somewhere. The pointer and the focus ring are the only
    cues a table row gets — it has no button chrome to fall back on. */
@@ -554,15 +563,24 @@
   .card.is-flash { animation: none; }
 }
 
-.chart { position: relative; width: 100%; }
+.chart { position: relative; width: 100%; container-type: inline-size; container-name: chart; }
 
-/* Two states, two plots, one card. The gap is the separation the shared plot
-   could not give: a run of bars with empty slots read as one continuous row. */
-.chart-split { display: flex; gap: 28px; align-items: flex-end; }
-.chart-split > .chart { flex: 1 1 0; min-width: 0; }
-
-@media (max-width: 720px) {
-  .chart-split { flex-direction: column; gap: 8px; }
+/* The cadence chart's own x-axis captions — plain HTML below the SVG, sized to
+   match the legend exactly, so text stays the same size at any card width
+   while the SVG above it keeps scaling freely. */
+.cadence-x-labels { display: flex; margin-top: 8px; }
+.cadence-x-label { flex: 1 1 0; min-width: 0; text-align: center; }
+.cadence-x-label__trial { font: var(--t-small); font-weight: 700; color: var(--ink-2); }
+.cadence-x-label__name {
+  font: var(--t-small); color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cadence-x-label__week { font: var(--t-small); color: var(--ink-3); }
+/* Once a card gets this narrow, the cadence name is the line to give up —
+   the longest of the three and, with the trial and the week already shown,
+   the least essential. */
+@container chart (max-width: 640px) {
+  .cadence-x-label__name { display: none; }
 }
 
 .chart__tip {
