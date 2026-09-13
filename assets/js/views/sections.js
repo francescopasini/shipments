@@ -4,8 +4,8 @@
 
 export const FO_SECTIONS = [
   { path: '/fo/dashboard', label: 'Dashboard', icon: 'home' },
-  { path: '/fo/shipments', label: 'Shipments', icon: 'box' },
   { path: '/fo/stock', label: 'Stock', icon: 'warehouse' },
+  { path: '/fo/shipments', label: 'Shipments', icon: 'box' },
   { path: '/fo/notifications', label: 'Notifications', icon: 'bell' },
   { path: '/fo/site', label: 'Site', icon: 'building' },
   // Reached from the persona switcher rather than the nav — it is about who you
@@ -16,8 +16,8 @@ export const FO_SECTIONS = [
 export const BO_SECTIONS = [
   { path: '/bo/dashboard', label: 'Dashboard', icon: 'home' },
   { path: '/bo/tasks', label: 'Tasks', icon: 'clipboard' },
-  { path: '/bo/shipments', label: 'Shipments', icon: 'box' },
   { path: '/bo/stock', label: 'Stock', icon: 'grid' },
+  { path: '/bo/shipments', label: 'Shipments', icon: 'box' },
   { path: '/bo/sites', label: 'Sites', icon: 'building' },
   { path: '/bo/trials', label: 'Trials', icon: 'flask' },
   { path: '/bo/profile', label: 'Profile', icon: 'user', offNav: true },

@@ -43,14 +43,14 @@ export function renderShell(root) {
   return main;
 }
 
-/** The logo lockup: mark on the left, "Shipments" over a letter-spaced
+/** The logo lockup: mark on the left, "Stock" over a letter-spaced
     "MANAGER" tagline on the right. Identical on both sides — the theme
     colour and the nav already say which. */
 function brand() {
   return h('div', { class: 'nav__brand' },
     brandMark(),
     h('div', { class: 'nav__brand-text' },
-      h('span', { class: 'nav__brand-name' }, 'Shipments'),
+      h('span', { class: 'nav__brand-name' }, 'Stock'),
       h('span', { class: 'nav__brand-tag' }, 'MANAGER')));
 }
 
@@ -64,9 +64,9 @@ const navIcon = (name) => {
 // at this size and on a retina display.
 const brandMark = () => {
   const img = document.createElement('img');
-  img.src = 'assets/img/brand-ship.png';
-  img.width = 110;
-  img.height = 110;
+  img.src = 'assets/img/drone-delivery-system.png';
+  img.width = 84;
+  img.height = 84;
   img.alt = '';
   img.decoding = 'async';
   img.className = 'nav__brand-mark';
